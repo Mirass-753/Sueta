@@ -62,14 +62,18 @@ public class HealthSystem : MonoBehaviour
     /// Обновление HP по данным с сервера.
     /// Вызывается из NetworkMessageHandler.HandleDamage.
     /// </summary>
-        public void SetCurrentHpFromServer(float hp)
-{
-    float oldHp = currentHp;
-    currentHp = Mathf.Clamp(hp, 0f, maxHp);
+    public void SetCurrentHpFromServer(float hp)
+    {
+        float clamped = Mathf.Clamp(hp, 0f, maxHp);
+        if (Mathf.Approximately(currentHp, clamped))
+            return;
 
-    // если хочешь — можешь тут проверять oldHp > currentHp
-    // и запускать эффект попадания / смерть и т.п.
-}
+        currentHp = clamped;
+        UpdateDeathFlag();
+
+        // если хочешь — можешь тут проверять oldHp > currentHp
+        // и запускать эффект попадания / смерть и т.п.
+    }
 
 
     /// <summary>
