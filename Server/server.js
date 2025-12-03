@@ -207,6 +207,9 @@ wss.on('connection', (ws) => {
   // Сразу отправляем снапшот состояний новому клиенту.
   sendSnapshot(ws);
 
+  // отправляем текущие HP всех сущностей, чтобы клиент видел актуальное состояние
+  sendHpSnapshot(ws);
+
   ws.on('message', (data) => {
     let msg;
     try {
