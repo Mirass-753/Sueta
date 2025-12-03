@@ -107,13 +107,21 @@ public static class NetworkMessageHandler
         if (dmg == null || string.IsNullOrEmpty(dmg.targetId))
             return;
 
-        if (!Damageable.TryGetById(dmg.targetId, out var target) || target == null)
+        bool found = Damageable.TryGetById(dmg.targetId, out var target) && target != null;
+        Debug.Log($"[NET] Damage event: targetId={dmg.targetId}, hp={dmg.hp}, " +
+                  $"amount={dmg.amount}, found={found}");
+
+        if (!found)
             return;
 
         // применяем значение HP, которое посчитал сервер
         if (target.health != null)
         {
             target.health.SetCurrentHpFromServer(dmg.hp);
+        }
+        else
+        {
+            Debug.LogWarning($"[NET] Damage target '{dmg.targetId}' has no HealthSystem");
         }
 
         // здесь позже можно добавить анимации попадания, эффект вспышки и т.п.
