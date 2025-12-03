@@ -2,8 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// Базовый тип, чтобы вытащить поле "type" из любого сообщения.
-
-
 public static class NetworkMessageHandler
 {
     // id игрока -> его визуальный удалённый кот
@@ -100,31 +98,27 @@ public static class NetworkMessageHandler
         }
         catch
         {
-            Debug.LogWarning($"[Net] Не удалось распарсить damage: {json}");
+            Debug.LogWarning($"[NET] Не удалось распарсить damage: {json}");
             return;
         }
 
         if (dmg == null || string.IsNullOrEmpty(dmg.targetId))
             return;
 
-        bool found = Damageable.TryGetById(dmg.targetId, out var target) && target != null;
-        Debug.Log($"[NET] Damage event: targetId={dmg.targetId}, hp={dmg.hp}, " +
-                  $"amount={dmg.amount}, found={found}");
-
-        if (!found)
+        if (!Damageable.TryGetById(dmg.targetId, out var target) || target == null)
+        {
+            Debug.LogWarning("[NET] Damage: не найден Damageable с id " + dmg.targetId);
             return;
-
-        // применяем значение HP, которое посчитал сервер
-        if (target.health != null)
-        {
-            target.health.SetCurrentHpFromServer(dmg.hp);
-        }
-        else
-        {
-            Debug.LogWarning($"[NET] Damage target '{dmg.targetId}' has no HealthSystem");
         }
 
-        // здесь позже можно добавить анимации попадания, эффект вспышки и т.п.
+        if (target.health == null)
+        {
+            Debug.LogWarning("[NET] Damage: у сущности нет HealthSystem");
+            return;
+        }
+
+        target.health.SetCurrentHpFromServer(dmg.hp);
+        Debug.Log($"[NET] Damage applied to {dmg.targetId}, hp={dmg.hp}");
     }
 
     // ---------- ОТКЛЮЧЕНИЕ ИГРОКА ----------
