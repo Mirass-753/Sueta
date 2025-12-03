@@ -51,6 +51,19 @@ public class Damageable : MonoBehaviour
     private static readonly Dictionary<string, Damageable> _registry =
         new Dictionary<string, Damageable>();
 
+    private void Awake()
+    {
+        if (health == null)
+            health = GetComponent<HealthSystem>();
+        if (energy == null)
+            energy = GetComponent<EnergySystem>();
+        if (combatMode == null)
+            combatMode = GetComponent<CombatModeController>();
+
+        if (health == null)
+            Debug.LogWarning($"[DMG] {name} has no HealthSystem — damage won't apply");
+    }
+
     private void OnEnable()
     {
         if (!string.IsNullOrEmpty(networkId))
@@ -105,11 +118,10 @@ public class Damageable : MonoBehaviour
 
     public void ApplyHit(AttackData data, Collider2D hitCollider)
     {
-        // Лог для проверки, что мы сюда попали
-        Debug.Log($"[DMG] ApplyHit on {gameObject.name}. " +
-                  $"isNetworkEntity={isNetworkEntity}, networkId='{networkId}'");
+        if (health == null)
+            return;
 
-        // 1. Базовый урон + зона
+        // 1. Зона попадания
         var zone = FindZone(hitCollider);
         float dmg = data.baseDamage * (zone != null ? zone.damageMultiplier : 1f);
 
@@ -122,24 +134,15 @@ public class Damageable : MonoBehaviour
         else if (isBlocking)
             dmg *= blockMultiplier;
 
-        // 3. Вычитаем энергию (если есть)
-        float remaining = energy != null ? energy.AbsorbDamage(dmg) : dmg;
-        if (remaining <= 0f)
-        {
-            Debug.Log($"[DMG] Damage fully absorbed. remaining={remaining}");
+        if (dmg <= 0f)
             return;
-        }
 
-        // ===== СЕТЕВОЙ УРОН =====
-        bool wsNull = WebSocketClient.Instance == null;
-        Debug.Log($"[DMG] before net branch: isNetworkEntity={isNetworkEntity}, " +
-                  $"networkId='{networkId}', wsNull={wsNull}");
-
+        // 3. СЕТЕВАЯ ЦЕЛЬ → отправляем запрос на сервер
         if (isNetworkEntity &&
             !string.IsNullOrEmpty(networkId) &&
             WebSocketClient.Instance != null)
         {
-            // кто ударил
+            // пытаемся найти атакующего и его id
             string sourceId = null;
             if (data.attacker != null)
             {
@@ -151,40 +154,23 @@ public class Damageable : MonoBehaviour
             var req = new NetMessageDamageRequest
             {
                 type     = "damage_request",
-                sourceId = sourceId,
+                sourceId = sourceId ?? "",
                 targetId = networkId,
-                amount   = remaining,
-                zone     = zone != null ? zone.zone.ToString() : string.Empty
+                amount   = dmg,
+                zone     = zone != null ? zone.zone.ToString() : ""
             };
 
             string json = JsonUtility.ToJson(req);
-            Debug.Log($"[NET] Send damage_request: target='{networkId}', " +
-                      $"source='{sourceId}', amount={remaining}, zone='{req.zone}'");
+            Debug.Log("[NET] Send damage_request: " + json);
             WebSocketClient.Instance.Send(json);
 
-            // Локально HP не трогаем – ждём ответ сервера
+            // HP локально НЕ трогаем — ждём пакет damage от сервера
             return;
         }
 
-        Debug.Log($"[DMG] Local damage path (networkEntity={isNetworkEntity}, " +
-                  $"networkId='{networkId}', wsNull={wsNull})");
-
-        // ===== ЛОКАЛЬНЫЙ УРОН (NPC/оффлайн) =====
-        if (health != null)
-        {
-            float prevHp = health.CurrentHealth;
+        // 4. ЛОКАЛЬНАЯ цель (NPC, оффлайн, нет сети)
+        float remaining = energy != null ? energy.AbsorbDamage(dmg) : dmg;
+        if (remaining > 0f)
             health.TakeDamage(remaining);
-
-            if (Mathf.Abs(health.CurrentHealth - prevHp) > 0.01f)
-            {
-                Debug.Log($"[DMG] Local damage applied. " +
-                          $"New HP = {health.CurrentHealth} (was {prevHp}), dmg={remaining}");
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"[DMG] ApplyHit on {gameObject.name}, " +
-                             $"but health == null, remaining={remaining}");
-        }
     }
 }
