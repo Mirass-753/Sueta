@@ -2,13 +2,15 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// Базовый тип, чтобы вытащить поле "type" из любого сообщения.
-
-
 public static class NetworkMessageHandler
 {
     // id игрока -> его визуальный удалённый кот
     private static readonly Dictionary<string, RemotePlayer> players =
         new Dictionary<string, RemotePlayer>();
+
+    // Кеш HP от сервера, чтобы применять его даже если объект ещё не создан
+    private static readonly Dictionary<string, float> hpCache =
+        new Dictionary<string, float>();
 
     /// Точка входа: сюда WebSocketClient передаёт сырую строку json.
     public static void Handle(string json)
@@ -43,6 +45,10 @@ public static class NetworkMessageHandler
 
             case "damage":
                 HandleDamage(json);
+                break;
+
+            case "hp_sync":
+                HandleHpSync(json);
                 break;
 
             case "disconnect":
@@ -82,6 +88,7 @@ public static class NetworkMessageHandler
         {
             rp = RemotePlayer.Create(move.id);
             players[move.id] = rp;
+            ApplyCachedHp(move.id, rp);
         }
 
         Vector2 pos = new Vector2(move.x, move.y);
@@ -100,31 +107,60 @@ public static class NetworkMessageHandler
         }
         catch
         {
-            Debug.LogWarning($"[Net] Не удалось распарсить damage: {json}");
+            Debug.LogWarning($"[NET] Не удалось распарсить damage: {json}");
             return;
         }
 
         if (dmg == null || string.IsNullOrEmpty(dmg.targetId))
             return;
 
-        bool found = Damageable.TryGetById(dmg.targetId, out var target) && target != null;
-        Debug.Log($"[NET] Damage event: targetId={dmg.targetId}, hp={dmg.hp}, " +
-                  $"amount={dmg.amount}, found={found}");
+        if (!Damageable.TryGetById(dmg.targetId, out var target) || target == null)
+        {
+            Debug.LogWarning("[NET] Damage: не найден Damageable с id " + dmg.targetId);
+            return;
+        }
 
-        if (!found)
+        if (target.health == null)
+        {
+            Debug.LogWarning("[NET] Damage: у сущности нет HealthSystem");
+            return;
+        }
+
+        target.health.SetCurrentHpFromServer(dmg.hp);
+        hpCache[dmg.targetId] = dmg.hp;
+        Debug.Log($"[NET] Damage applied to {dmg.targetId}, hp={dmg.hp}");
+    }
+
+    // ---------- СИНХРОНИЗАЦИЯ HP ДЛЯ НОВЫХ КЛИЕНТОВ ----------
+
+    private static void HandleHpSync(string json)
+    {
+        NetMessageHpSync sync;
+        try
+        {
+            sync = JsonUtility.FromJson<NetMessageHpSync>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить hp_sync: {json}");
+            return;
+        }
+
+        if (sync?.entities == null)
             return;
 
-        // применяем значение HP, которое посчитал сервер
-        if (target.health != null)
+        foreach (var e in sync.entities)
         {
-            target.health.SetCurrentHpFromServer(dmg.hp);
-        }
-        else
-        {
-            Debug.LogWarning($"[NET] Damage target '{dmg.targetId}' has no HealthSystem");
-        }
+            if (e == null || string.IsNullOrEmpty(e.id))
+                continue;
 
-        // здесь позже можно добавить анимации попадания, эффект вспышки и т.п.
+            hpCache[e.id] = e.hp;
+
+            if (Damageable.TryGetById(e.id, out var dmg) && dmg?.health != null)
+            {
+                dmg.health.SetCurrentHpFromServer(e.hp);
+            }
+        }
     }
 
     // ---------- ОТКЛЮЧЕНИЕ ИГРОКА ----------
@@ -170,5 +206,23 @@ public static class NetworkMessageHandler
                 Object.Destroy(kv.Value.gameObject);
         }
         players.Clear();
+        hpCache.Clear();
+    }
+
+    // ---------- ВНУТРЕННИЕ УТИЛИТЫ ----------
+
+    private static void ApplyCachedHp(string id, RemotePlayer rp)
+    {
+        if (rp == null || string.IsNullOrEmpty(id))
+            return;
+
+        if (!hpCache.TryGetValue(id, out var hp))
+            return;
+
+        var dmg = rp.GetComponent<Damageable>();
+        if (dmg?.health == null)
+            return;
+
+        dmg.health.SetCurrentHpFromServer(hp);
     }
 }
