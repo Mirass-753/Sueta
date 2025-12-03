@@ -51,6 +51,19 @@ public class Damageable : MonoBehaviour
     private static readonly Dictionary<string, Damageable> _registry =
         new Dictionary<string, Damageable>();
 
+    private void Awake()
+    {
+        if (health == null)
+            health = GetComponent<HealthSystem>();
+        if (energy == null)
+            energy = GetComponent<EnergySystem>();
+        if (combatMode == null)
+            combatMode = GetComponent<CombatModeController>();
+
+        if (health == null)
+            Debug.LogWarning($"[DMG] {name} has no HealthSystem — damage won't apply");
+    }
+
     private void OnEnable()
     {
         if (!string.IsNullOrEmpty(networkId))
