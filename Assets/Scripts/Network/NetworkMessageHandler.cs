@@ -8,6 +8,10 @@ public static class NetworkMessageHandler
     private static readonly Dictionary<string, RemotePlayer> players =
         new Dictionary<string, RemotePlayer>();
 
+    // Кеш HP от сервера, чтобы применять его даже если объект ещё не создан
+    private static readonly Dictionary<string, float> hpCache =
+        new Dictionary<string, float>();
+
     /// Точка входа: сюда WebSocketClient передаёт сырую строку json.
     public static void Handle(string json)
     {
@@ -84,6 +88,7 @@ public static class NetworkMessageHandler
         {
             rp = RemotePlayer.Create(move.id);
             players[move.id] = rp;
+            ApplyCachedHp(move.id, rp);
         }
 
         Vector2 pos = new Vector2(move.x, move.y);
@@ -122,6 +127,7 @@ public static class NetworkMessageHandler
         }
 
         target.health.SetCurrentHpFromServer(dmg.hp);
+        hpCache[dmg.targetId] = dmg.hp;
         Debug.Log($"[NET] Damage applied to {dmg.targetId}, hp={dmg.hp}");
     }
 
@@ -148,10 +154,12 @@ public static class NetworkMessageHandler
             if (e == null || string.IsNullOrEmpty(e.id))
                 continue;
 
-            if (!Damageable.TryGetById(e.id, out var dmg) || dmg?.health == null)
-                continue;
+            hpCache[e.id] = e.hp;
 
-            dmg.health.SetCurrentHpFromServer(e.hp);
+            if (Damageable.TryGetById(e.id, out var dmg) && dmg?.health != null)
+            {
+                dmg.health.SetCurrentHpFromServer(e.hp);
+            }
         }
     }
 
@@ -198,5 +206,23 @@ public static class NetworkMessageHandler
                 Object.Destroy(kv.Value.gameObject);
         }
         players.Clear();
+        hpCache.Clear();
+    }
+
+    // ---------- ВНУТРЕННИЕ УТИЛИТЫ ----------
+
+    private static void ApplyCachedHp(string id, RemotePlayer rp)
+    {
+        if (rp == null || string.IsNullOrEmpty(id))
+            return;
+
+        if (!hpCache.TryGetValue(id, out var hp))
+            return;
+
+        var dmg = rp.GetComponent<Damageable>();
+        if (dmg?.health == null)
+            return;
+
+        dmg.health.SetCurrentHpFromServer(hp);
     }
 }
