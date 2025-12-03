@@ -67,7 +67,7 @@ public class RemotePlayer : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[REMOTE] {name} has no Damageable");
+            Debug.LogWarning($"[REMOTE] ываываыва {name} has no Damageable");
         }
     }
 
