@@ -64,7 +64,12 @@ public class HealthSystem : MonoBehaviour
     /// </summary>
     public void SetCurrentHpFromServer(float hp)
     {
-        currentHp = Mathf.Clamp(hp, 0f, maxHp);
+        float clamped = Mathf.Clamp(hp, 0f, maxHp);
+        if (Mathf.Approximately(currentHp, clamped))
+            return;
+
+        currentHp = clamped;
+        UpdateDeathFlag();
 
         // если хочешь — можешь тут проверять oldHp > currentHp
         // и запускать эффект попадания / смерть и т.п.
