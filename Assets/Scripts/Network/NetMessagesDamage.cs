@@ -25,3 +25,17 @@ public class NetMessageDamageEvent
     public float amount;     // урон, который сервер принял
     public float hp;         // новое HP цели
 }
+
+[Serializable]
+public class NetMessageHpSync
+{
+    [Serializable]
+    public class EntityHp
+    {
+        public string id;
+        public float hp;
+    }
+
+    public string type = "hp_sync";
+    public EntityHp[] entities;
+}

@@ -43,6 +43,10 @@ public static class NetworkMessageHandler
                 HandleDamage(json);
                 break;
 
+            case "hp_sync":
+                HandleHpSync(json);
+                break;
+
             case "disconnect":
                 HandleDisconnect(json);
                 break;
@@ -119,6 +123,36 @@ public static class NetworkMessageHandler
 
         target.health.SetCurrentHpFromServer(dmg.hp);
         Debug.Log($"[NET] Damage applied to {dmg.targetId}, hp={dmg.hp}");
+    }
+
+    // ---------- СИНХРОНИЗАЦИЯ HP ДЛЯ НОВЫХ КЛИЕНТОВ ----------
+
+    private static void HandleHpSync(string json)
+    {
+        NetMessageHpSync sync;
+        try
+        {
+            sync = JsonUtility.FromJson<NetMessageHpSync>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить hp_sync: {json}");
+            return;
+        }
+
+        if (sync?.entities == null)
+            return;
+
+        foreach (var e in sync.entities)
+        {
+            if (e == null || string.IsNullOrEmpty(e.id))
+                continue;
+
+            if (!Damageable.TryGetById(e.id, out var dmg) || dmg?.health == null)
+                continue;
+
+            dmg.health.SetCurrentHpFromServer(e.hp);
+        }
     }
 
     // ---------- ОТКЛЮЧЕНИЕ ИГРОКА ----------

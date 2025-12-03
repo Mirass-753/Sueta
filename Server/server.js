@@ -29,6 +29,9 @@ function handleMove(ws, msg) {
 
   ws.playerId = ws.playerId || msg.id;
 
+  // ensure HP exists for this entity so new clients can get it in snapshots
+  getHp(msg.id);
+
   playerStates.set(msg.id, {
     x: msg.x,
     y: msg.y,
@@ -71,6 +74,20 @@ function handleDamageRequest(ws, msg) {
   broadcast(evt);
 }
 
+function sendHpSnapshot(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  const entities = Array.from(entityHp.entries()).map(([id, hp]) => ({ id, hp }));
+  if (entities.length === 0) return;
+
+  const snapshot = {
+    type: 'hp_sync',
+    entities,
+  };
+
+  ws.send(JSON.stringify(snapshot));
+}
+
 function handleDisconnect(id) {
   if (!id) return;
   playerStates.delete(id);
@@ -80,6 +97,9 @@ function handleDisconnect(id) {
 
 wss.on('connection', (ws) => {
   console.log('[WS] client connected');
+
+  // отправляем текущие HP всех сущностей, чтобы клиент видел актуальное состояние
+  sendHpSnapshot(ws);
 
   ws.on('message', (data) => {
     let msg;
