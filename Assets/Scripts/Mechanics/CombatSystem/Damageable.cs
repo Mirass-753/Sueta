@@ -168,6 +168,12 @@ public class Damageable : MonoBehaviour
             return;
         }
 
+        if (isNetworkEntity)
+        {
+            Debug.LogWarning(
+                $"[NET] damage_request SKIPPED ({name}): id='{networkId}', ws={(WebSocketClient.Instance == null ? "null" : WebSocketClient.Instance.ToString())}");
+        }
+
         // 4. ЛОКАЛЬНАЯ цель (NPC, оффлайн, нет сети)
         float remaining = energy != null ? energy.AbsorbDamage(dmg) : dmg;
         if (remaining > 0f)

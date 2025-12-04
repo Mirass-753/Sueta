@@ -42,3 +42,6 @@ Thumbs.db
 
 # Crashlytics / etc
 crashlytics-build.properties
+
+# Node server deps
+Server/node_modules/

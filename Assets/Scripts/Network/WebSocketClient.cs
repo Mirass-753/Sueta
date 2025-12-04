@@ -11,15 +11,38 @@ public class WebSocketClient : MonoBehaviour
     [SerializeField]
     private bool autoConnectInEditor = true;
 
+    [Header("URLs")]
+    [Tooltip("Production WebSocket endpoint (default)")]
+    [SerializeField]
+    private string productionUrl = "wss://catlaw.online/ws";
+
+    [Tooltip("Override URL when running in the Unity editor (e.g. local Node server)")]
+    [SerializeField]
+    private bool overrideUrlInEditor = true;
+
+    [SerializeField]
+    private string editorUrl = "ws://127.0.0.1:3000";
+
     // собственно сокет
     private WebSocket socket;
 
     // ---- ВАЖНО: здесь выбираем URL ----
-    private static string GetUrl()
-{
-    // Всегда ходим на боевой сервер через nginx
-    return "wss://catlaw.online/ws";
-}
+    private string GetUrl()
+    {
+        // 1) env-переменная имеет наивысший приоритет (например, для билдов)
+        var envUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL");
+        if (!string.IsNullOrEmpty(envUrl))
+            return envUrl;
+
+#if UNITY_EDITOR
+        // 2) в редакторе можно включить локальный сервер
+        if (overrideUrlInEditor && !string.IsNullOrEmpty(editorUrl))
+            return editorUrl;
+#endif
+
+        // 3) по умолчанию — продовый wss
+        return productionUrl;
+    }
 
 
     private string WebSocketUrl => GetUrl();
