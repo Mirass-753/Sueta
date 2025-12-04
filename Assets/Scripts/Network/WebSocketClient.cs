@@ -124,7 +124,7 @@ public class WebSocketClient : MonoBehaviour
     }
 
     // Подключение
-    public async System.Threading.Tasks.Task Connect()
+    public async Task Connect()
     {
         connectRequested = true;
         if (connecting)
@@ -135,7 +135,7 @@ public class WebSocketClient : MonoBehaviour
         await ConnectToCurrentCandidate();
     }
 
-    private async System.Threading.Tasks.Task ConnectToCurrentCandidate()
+    private async Task ConnectToCurrentCandidate()
     {
         connecting = true;
         if (candidateUrls == null || candidateUrls.Length == 0)
@@ -249,6 +249,7 @@ public class WebSocketClient : MonoBehaviour
         await Connect();
     }
 
+    // ВАЖНО: тут был синтаксический мусор, оставляем только этот вариант
     private async void FlushQueue()
     {
         if (socket == null || socket.State != WebSocketState.Open)
@@ -267,14 +268,6 @@ public class WebSocketClient : MonoBehaviour
                 break;
             }
         }
-        catch
-        {
-            reconnecting = false;
-            return;
-        }
-
-        reconnecting = false;
-        await Connect();
     }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
