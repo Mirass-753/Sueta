@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using NativeWebSocket;
 
@@ -7,22 +8,88 @@ public class WebSocketClient : MonoBehaviour
 {
     public static WebSocketClient Instance;
 
+    // Автосоздание клиента, если забыли положить его в сцену/префаб.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void EnsureInstanceExists()
+    {
+        if (Instance != null)
+            return;
+
+        var existing = FindObjectOfType<WebSocketClient>();
+        if (existing != null)
+        {
+            Instance = existing;
+            return;
+        }
+
+        var go = new GameObject("WebSocketClient");
+        go.AddComponent<WebSocketClient>();
+    }
+
     [Header("Connection")]
     [SerializeField]
     private bool autoConnectInEditor = true;
 
+    [SerializeField]
+    [Tooltip("Автоматически пытаться переподключиться при обрыве")]
+    private bool autoReconnect = true;
+
+    [SerializeField]
+    [Range(0.5f, 10f)]
+    private float reconnectDelaySeconds = 2f;
+
+    [Header("URLs")]
+    [Tooltip("Production WebSocket endpoint (default)")]
+    [SerializeField]
+    private string productionUrl = "wss://catlaw.online/ws";
+
+    [Tooltip("Override URL when running in the Unity editor (e.g. local Node server)")]
+    [SerializeField]
+    private bool overrideUrlInEditor = true;
+
+    [SerializeField]
+    private string editorUrl = "ws://127.0.0.1:3000";
+
+    [Tooltip("В редакторе: если локальный URL недоступен, попробовать production")]
+    [SerializeField]
+    private bool fallbackToProductionInEditor = true;
+
     // собственно сокет
     private WebSocket socket;
 
+    private bool applicationQuitting;
+    private bool reconnecting;
+    private bool skipReconnectOnce;
+
     // ---- ВАЖНО: здесь выбираем URL ----
-    private static string GetUrl()
-{
-    // Всегда ходим на боевой сервер через nginx
-    return "wss://catlaw.online/ws";
-}
+    private string[] BuildCandidateUrls()
+    {
+        // 1) env-переменная имеет наивысший приоритет (например, для билдов)
+        var envUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL");
+        if (!string.IsNullOrEmpty(envUrl))
+            return new[] { envUrl };
 
+        // 2) в редакторе можно попытаться подключиться к локальному серверу,
+        // а затем — к продовому endpoint (если включён fallback)
+#if UNITY_EDITOR
+        if (overrideUrlInEditor && !string.IsNullOrEmpty(editorUrl))
+        {
+            if (fallbackToProductionInEditor && !string.IsNullOrEmpty(productionUrl))
+                return new[] { editorUrl, productionUrl };
 
-    private string WebSocketUrl => GetUrl();
+            return new[] { editorUrl };
+        }
+#endif
+
+        // 3) по умолчанию — продовый wss
+        return new[] { productionUrl };
+    }
+
+    private string[] candidateUrls = Array.Empty<string>();
+    private int currentUrlIndex = 0;
+
+    private bool connectRequested;
+    private bool connecting;
 
     private async void Awake()
     {
@@ -39,25 +106,52 @@ public class WebSocketClient : MonoBehaviour
         if (autoConnectInEditor)
 #endif
         {
+            connectRequested = true;
             await Connect();
         }
+    }
+
+    private void OnEnable()
+    {
+        applicationQuitting = false;
     }
 
     // Подключение
     public async System.Threading.Tasks.Task Connect()
     {
+        connectRequested = true;
+        if (connecting)
+            return;
+
+        candidateUrls = BuildCandidateUrls();
+        currentUrlIndex = 0;
+        await ConnectToCurrentCandidate();
+    }
+
+    private async System.Threading.Tasks.Task ConnectToCurrentCandidate()
+    {
+        connecting = true;
+        if (candidateUrls == null || candidateUrls.Length == 0)
+        {
+            Debug.LogError("[WS] No WebSocket URLs configured");
+            connecting = false;
+            return;
+        }
+
+        var url = candidateUrls[Mathf.Clamp(currentUrlIndex, 0, candidateUrls.Length - 1)];
+
         // если уже был сокет — закрываем
         if (socket != null)
         {
             try
             {
+                skipReconnectOnce = true;
                 await socket.Close();
             }
             catch { }
             socket = null;
         }
 
-        var url = WebSocketUrl;
         Debug.Log("[WS] Connecting to: " + url);
 
         socket = new WebSocket(url);
@@ -65,16 +159,22 @@ public class WebSocketClient : MonoBehaviour
         socket.OnOpen += () =>
         {
             Debug.Log("[WS] Connected");
+            reconnecting = false;
+            connecting = false;
         };
 
         socket.OnError += (e) =>
         {
             Debug.LogError("[WS] Error: " + e);
+            TryNextCandidateOrReconnect("error");
+            connecting = false;
         };
 
         socket.OnClose += (code) =>
         {
             Debug.Log("[WS] Closed: " + code);
+            TryNextCandidateOrReconnect("close");
+            connecting = false;
         };
 
         socket.OnMessage += (bytes) =>
@@ -91,7 +191,54 @@ public class WebSocketClient : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError("[WS] Connect exception: " + ex);
+            TryNextCandidateOrReconnect("exception");
+            connecting = false;
         }
+    }
+
+    private async void TryNextCandidateOrReconnect(string reason)
+    {
+        // Если есть следующий URL в списке — пробуем его без дополнительной задержки.
+        if (candidateUrls != null && currentUrlIndex + 1 < candidateUrls.Length)
+        {
+            currentUrlIndex++;
+            Debug.Log($"[WS] Trying fallback URL: {candidateUrls[currentUrlIndex]}");
+            await ConnectToCurrentCandidate();
+            return;
+        }
+
+        TryScheduleReconnect(reason);
+    }
+
+    private async void TryScheduleReconnect(string reason)
+    {
+        if (!autoReconnect || applicationQuitting)
+            return;
+
+        if (skipReconnectOnce)
+        {
+            skipReconnectOnce = false;
+            return;
+        }
+
+        if (reconnecting)
+            return;
+
+        reconnecting = true;
+        Debug.Log($"[WS] Reconnecting in {reconnectDelaySeconds:0.##}s ({reason})");
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(Mathf.Max(0.5f, reconnectDelaySeconds)));
+        }
+        catch
+        {
+            reconnecting = false;
+            return;
+        }
+
+        reconnecting = false;
+        await Connect();
     }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
@@ -107,14 +254,22 @@ public class WebSocketClient : MonoBehaviour
     {
         if (socket == null)
         {
-            // Debug.LogWarning("[WS] Send called, but socket is null");
+            Debug.LogWarning("[WS] Send called, but socket is null (not connected)");
+            if (!connectRequested && !connecting)
+            {
+                connectRequested = true;
+                await Connect();
+            }
             return;
         }
 
         if (socket.State != WebSocketState.Open)
         {
-            // чтобы не спамило в консоль, просто тихо выходим
-            // Debug.LogWarning("[WS] Send called, but socket state is " + socket.State);
+            Debug.LogWarning("[WS] Send called, but socket state is " + socket.State);
+            if (!reconnecting && !connecting)
+            {
+                TryScheduleReconnect("send_state=" + socket.State);
+            }
             return;
         }
 
@@ -130,6 +285,8 @@ public class WebSocketClient : MonoBehaviour
 
     private async void OnApplicationQuit()
     {
+        applicationQuitting = true;
+
         if (socket != null)
         {
             try
