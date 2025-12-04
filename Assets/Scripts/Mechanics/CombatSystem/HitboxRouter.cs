@@ -17,6 +17,14 @@ public class HitboxRouter : MonoBehaviour
         if (attackerRoot == null)
             attackerRoot = transform.root;
 
+        ResolveAttackerDamageable();
+    }
+
+    private void ResolveAttackerDamageable()
+    {
+        if (_attackerDamageable != null)
+            return;
+
         if (attackerRoot != null)
             _attackerDamageable = attackerRoot.GetComponentInChildren<Damageable>();
     }
@@ -29,6 +37,10 @@ public class HitboxRouter : MonoBehaviour
         if (targetDamageable == null)
             return;
 
+        // хитбоксы могут спауниться раньше, чем создаётся/инициализируется атакующий
+        // (например, снаряды). Поэтому перед атакой пробуем ещё раз найти Damageable.
+        ResolveAttackerDamageable();
+
         // не бьём сами себя
         if (_attackerDamageable != null && targetDamageable == _attackerDamageable)
             return;
@@ -38,7 +50,8 @@ public class HitboxRouter : MonoBehaviour
         {
             baseDamage = baseDamage,
             direction  = transform.right,      // направление стрелки
-            attacker   = attackerRoot != null ? attackerRoot : transform
+            attacker   = attackerRoot != null ? attackerRoot : transform,
+            attackerDamageable = _attackerDamageable
         };
 
         targetDamageable.ApplyHit(data, other);

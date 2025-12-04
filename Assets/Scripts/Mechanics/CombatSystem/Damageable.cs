@@ -20,6 +20,7 @@ public struct AttackData
     public float baseDamage;
     public Vector2 direction;
     public Transform attacker;
+    public Damageable attackerDamageable;
 }
 
 /// <summary>
@@ -144,11 +145,23 @@ public class Damageable : MonoBehaviour
         {
             // пытаемся найти атакующего и его id
             string sourceId = null;
-            if (data.attacker != null)
+            var attackerDmg = data.attackerDamageable;
+
+            if (attackerDmg == null && data.attacker != null)
             {
-                var src = data.attacker.GetComponentInParent<Damageable>();
-                if (src != null && !string.IsNullOrEmpty(src.networkId))
-                    sourceId = src.networkId;
+                attackerDmg = data.attacker.GetComponentInParent<Damageable>();
+            }
+
+            if (attackerDmg != null)
+            {
+                if (!string.IsNullOrEmpty(attackerDmg.networkId))
+                {
+                    sourceId = attackerDmg.networkId;
+                }
+                else
+                {
+                    Debug.LogWarning($"[NET] Attacker Damageable on '{attackerDmg.name}' has empty networkId — sourceId will be blank");
+                }
             }
 
             var req = new NetMessageDamageRequest
