@@ -267,6 +267,14 @@ public class WebSocketClient : MonoBehaviour
                 break;
             }
         }
+        catch
+        {
+            reconnecting = false;
+            return;
+        }
+
+        reconnecting = false;
+        await Connect();
     }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
