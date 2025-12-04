@@ -174,15 +174,15 @@ public class WebSocketClient : MonoBehaviour
         socket.OnError += (e) =>
         {
             Debug.LogError("[WS] Error: " + e);
-            TryNextCandidateOrReconnect("error");
             connecting = false;
+            TryNextCandidateOrReconnect("error");
         };
 
         socket.OnClose += (code) =>
         {
             Debug.Log("[WS] Closed: " + code);
-            TryNextCandidateOrReconnect("close");
             connecting = false;
+            TryNextCandidateOrReconnect("close");
         };
 
         socket.OnMessage += (bytes) =>
@@ -211,11 +211,27 @@ public class WebSocketClient : MonoBehaviour
         {
             currentUrlIndex++;
             Debug.Log($"[WS] Trying fallback URL: {candidateUrls[currentUrlIndex]}");
-            await ConnectToCurrentCandidate();
+            ScheduleConnectToCurrentCandidate();
             return;
         }
 
         TryScheduleReconnect(reason);
+    }
+
+    private void ScheduleConnectToCurrentCandidate()
+    {
+        if (connecting)
+            return;
+
+        _ = ConnectToCurrentCandidateDelayed();
+    }
+
+    private async System.Threading.Tasks.Task ConnectToCurrentCandidateDelayed()
+    {
+        // Разрываем прямую рекурсию по стеку (OnClose/OnError -> Connect -> Close -> ...)
+        // чтобы избежать переполнения стека в WebGL.
+        await Task.Yield();
+        await ConnectToCurrentCandidate();
     }
 
     private async void TryScheduleReconnect(string reason)
@@ -267,14 +283,6 @@ public class WebSocketClient : MonoBehaviour
                 break;
             }
         }
-        catch
-        {
-            reconnecting = false;
-            return;
-        }
-
-        reconnecting = false;
-        await Connect();
     }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
