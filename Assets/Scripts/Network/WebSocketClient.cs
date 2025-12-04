@@ -27,8 +27,10 @@ public class WebSocketClient : MonoBehaviour
     }
 
     [Header("Connection")]
+#if UNITY_EDITOR
     [SerializeField]
     private bool autoConnectInEditor = true;
+#endif
 
     [SerializeField]
     [Tooltip("Автоматически пытаться переподключиться при обрыве")]
@@ -43,6 +45,7 @@ public class WebSocketClient : MonoBehaviour
     [SerializeField]
     private string productionUrl = "wss://catlaw.online/ws";
 
+#if UNITY_EDITOR
     [Tooltip("Override URL when running in the Unity editor (e.g. local Node server)")]
     [SerializeField]
     private bool overrideUrlInEditor = true;
@@ -53,6 +56,7 @@ public class WebSocketClient : MonoBehaviour
     [Tooltip("В редакторе: если локальный URL недоступен, попробовать production")]
     [SerializeField]
     private bool fallbackToProductionInEditor = true;
+#endif
 
     // собственно сокет
     private WebSocket socket;
