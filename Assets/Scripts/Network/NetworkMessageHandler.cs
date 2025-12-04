@@ -194,6 +194,7 @@ public static class NetworkMessageHandler
         }
 
         players.Remove(disc.id);
+        hpCache.Remove(disc.id);
     }
 
     // ---------- Сброс мира (например, при смене сцены) ----------
