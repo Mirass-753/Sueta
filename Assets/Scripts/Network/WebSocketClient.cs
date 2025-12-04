@@ -61,6 +61,13 @@ public class WebSocketClient : MonoBehaviour
     private bool reconnecting;
     private bool skipReconnectOnce;
 
+    // Очередь сообщений, которые пришли до установления соединения.
+    private readonly System.Collections.Generic.Queue<string> outgoingQueue =
+        new System.Collections.Generic.Queue<string>();
+
+    [SerializeField, Tooltip("Максимум ожидающих сообщений до соединения")]
+    private int queuedMessageLimit = 64;
+
     // ---- ВАЖНО: здесь выбираем URL ----
     private string[] BuildCandidateUrls()
     {
@@ -161,6 +168,7 @@ public class WebSocketClient : MonoBehaviour
             Debug.Log("[WS] Connected");
             reconnecting = false;
             connecting = false;
+            FlushQueue();
         };
 
         socket.OnError += (e) =>
@@ -241,6 +249,34 @@ public class WebSocketClient : MonoBehaviour
         await Connect();
     }
 
+    private async void FlushQueue()
+    {
+        if (socket == null || socket.State != WebSocketState.Open)
+            return;
+
+        while (outgoingQueue.Count > 0)
+        {
+            var msg = outgoingQueue.Dequeue();
+            try
+            {
+                await socket.SendText(msg);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[WS] Flush send exception: " + ex);
+                break;
+            }
+        }
+        catch
+        {
+            reconnecting = false;
+            return;
+        }
+
+        reconnecting = false;
+        await Connect();
+    }
+
 #if !UNITY_WEBGL || UNITY_EDITOR
     private void Update()
     {
@@ -255,21 +291,15 @@ public class WebSocketClient : MonoBehaviour
         if (socket == null)
         {
             Debug.LogWarning("[WS] Send called, but socket is null (not connected)");
-            if (!connectRequested && !connecting)
-            {
-                connectRequested = true;
-                await Connect();
-            }
+            EnqueueWhileConnecting(message);
             return;
         }
 
         if (socket.State != WebSocketState.Open)
         {
             Debug.LogWarning("[WS] Send called, but socket state is " + socket.State);
-            if (!reconnecting && !connecting)
-            {
-                TryScheduleReconnect("send_state=" + socket.State);
-            }
+            EnqueueWhileConnecting(message);
+            TryScheduleReconnect("send_state=" + socket.State);
             return;
         }
 
@@ -280,6 +310,23 @@ public class WebSocketClient : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError("[WS] Send exception: " + ex);
+        }
+    }
+
+    private async void EnqueueWhileConnecting(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+            return;
+
+        if (outgoingQueue.Count >= queuedMessageLimit)
+            outgoingQueue.Dequeue();
+
+        outgoingQueue.Enqueue(message);
+
+        if (!connectRequested && !connecting)
+        {
+            connectRequested = true;
+            await Connect();
         }
     }
 
