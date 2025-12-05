@@ -64,6 +64,7 @@ public class WebSocketClient : MonoBehaviour
     private bool applicationQuitting;
     private bool reconnecting;
     private bool skipReconnectOnce;
+    private bool reconnectDecisionPending;
 
     // Очередь сообщений, которые пришли до установления соединения.
     private readonly System.Collections.Generic.Queue<string> outgoingQueue =
@@ -208,18 +209,40 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
-    private async void TryNextCandidateOrReconnect(string reason)
+    private void TryNextCandidateOrReconnect(string reason)
     {
-        // Если есть следующий URL в списке — пробуем его без дополнительной задержки.
-        if (candidateUrls != null && currentUrlIndex + 1 < candidateUrls.Length)
-        {
-            currentUrlIndex++;
-            Debug.Log($"[WS] Trying fallback URL: {candidateUrls[currentUrlIndex]}");
-            ScheduleConnectToCurrentCandidate();
+        // WebGL может синхронно вызвать onClose/onError прямо из Connect/Close,
+        // что разворачивает цепочку Connect -> Close -> onClose -> Connect ...
+        // и приводит к RangeError: Maximum call stack size exceeded.
+        // Делаем решение о реконнекте только на следующем тике.
+        if (reconnectDecisionPending)
             return;
-        }
 
-        TryScheduleReconnect(reason);
+        reconnectDecisionPending = true;
+        _ = TryNextCandidateOrReconnectDelayed(reason);
+    }
+
+    private async Task TryNextCandidateOrReconnectDelayed(string reason)
+    {
+        try
+        {
+            await Task.Yield();
+
+            // Если есть следующий URL в списке — пробуем его без дополнительной задержки.
+            if (candidateUrls != null && currentUrlIndex + 1 < candidateUrls.Length)
+            {
+                currentUrlIndex++;
+                Debug.Log($"[WS] Trying fallback URL: {candidateUrls[currentUrlIndex]}");
+                ScheduleConnectToCurrentCandidate();
+                return;
+            }
+
+            TryScheduleReconnect(reason);
+        }
+        finally
+        {
+            reconnectDecisionPending = false;
+        }
     }
 
     private void ScheduleConnectToCurrentCandidate()
