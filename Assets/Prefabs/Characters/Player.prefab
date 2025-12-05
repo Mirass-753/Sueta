@@ -153,6 +153,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   baseDamage: 10
+  attackerRoot: {fileID: 0}
 --- !u!61 &1055058181325575480
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -652,6 +653,10 @@ MonoBehaviour:
   movingSprite: {fileID: 21300000, guid: 0a2bc64995bc6034f8334384b2117918, type: 3}
   cellCenterOffset: {x: 0.5, y: 0.5}
   occupancyManager: {fileID: 0}
+  bodyCollider: {fileID: 0}
+  playerLayer:
+    serializedVersion: 2
+    m_Bits: 8
 --- !u!114 &1330285521281924109
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -785,7 +790,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8f7ed4092a8998342800a3f1c804613e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 100
+  maxHp: 100
+  currentHp: 100
 --- !u!114 &3073060032690685179
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -827,6 +833,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61c2f74b8bd888e489e04596b8b06455, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  networkId: 
+  isNetworkEntity: 0
   health: {fileID: 7401051496187098216}
   energy: {fileID: 3073060032690685179}
   combatMode: {fileID: 0}

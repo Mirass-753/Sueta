@@ -33,6 +33,10 @@ public class PlayerController : MonoBehaviour
     [Header("Occupancy (локально)")]
     public GridOccupancyManager occupancyManager;
 
+    [Header("Collision")]
+    [SerializeField] private BoxCollider2D bodyCollider;   // коллайдер тела игрока
+    [SerializeField] private LayerMask playerLayer;        // слой, на котором висят игроки
+
     private Vector2 _targetPosition;
     private bool _isMoving = false;
     private bool _wantsToRun = false;
@@ -52,7 +56,6 @@ public class PlayerController : MonoBehaviour
 
     private void Start()
     {
-
 #if UNITY_2023_1_OR_NEWER
         if (occupancyManager == null)
             occupancyManager = UnityEngine.Object.FindFirstObjectByType<GridOccupancyManager>();
@@ -84,7 +87,8 @@ public class PlayerController : MonoBehaviour
         if (ui != null)
             ui.SetPlayerInventory(GetComponent<PlayerInventory>());
     }
- private void Awake()
+
+    private void Awake()
     {
         // генерируем id игрока на сессию
         myId = Guid.NewGuid().ToString();
@@ -103,7 +107,6 @@ public class PlayerController : MonoBehaviour
             Debug.LogWarning("[PLAYER] No Damageable on Player, network damage won't work");
         }
     }
-
 
     private void OnDisable()
     {
@@ -214,6 +217,32 @@ public class PlayerController : MonoBehaviour
         return new Vector2(wx, wy);
     }
 
+    // ========= КОЛЛИЗИЯ С ДРУГИМИ ИГРОКАМИ =========
+
+    /// <summary>
+    /// Проверяем, стоит ли на целевой позиции другой игрок.
+    /// </summary>
+    private bool IsBlockedByOtherPlayer(Vector2 targetWorldPos)
+    {
+        if (bodyCollider == null)
+            return false;
+
+        // берём размеры коллайдера в мире, чуть уменьшаем, чтобы не было ложных срабатываний
+        Vector2 size = bodyCollider.bounds.size * 0.9f;
+
+        Collider2D hit = Physics2D.OverlapBox(
+            targetWorldPos,
+            size,
+            0f,
+            playerLayer
+        );
+
+        // hit может быть мы сами
+        if (hit == null) return false;
+
+        return hit.gameObject != gameObject;
+    }
+
     // ========= КЛАВИАТУРА =========
 
     private Vector2 GetKeyboardDirection()
@@ -255,10 +284,7 @@ public class PlayerController : MonoBehaviour
 
     private void HandleKeyboardMovement(Vector2 inputDirection)
     {
-        // ВАЖНО:
-        // здесь мы БОЛЬШЕ НЕ вызываем InterruptMovement для клавы.
-        // Т.е. если шаг уже идёт, мы даём ему ДОЙТИ до клетки,
-        // а новое направление вступает в силу на следующем шаге.
+        // не рвём шаг на клаве, даём дойти до клетки
 
         if (!_isMoving)
         {
@@ -379,6 +405,17 @@ public class PlayerController : MonoBehaviour
         Vector2Int nextCell = _currentCell + cellStep;
         Vector2 targetPos = CellToWorld(nextCell);
 
+        // 1) проверка на других игроков
+        if (IsBlockedByOtherPlayer(targetPos))
+        {
+            Debug.Log("[MOVE] blocked by other player at " + targetPos);
+            _isMoving = false;
+            _staminaSystem?.StopRunning();
+            SetIdleSprite();
+            yield break;
+        }
+
+        // 2) проверка по гриду (стены, препятствия и т.п.)
         bool canMove = occupancyManager == null || occupancyManager.TryMove(_currentCell, nextCell);
         if (!canMove)
         {
@@ -390,7 +427,7 @@ public class PlayerController : MonoBehaviour
 
         Vector2 startPosition = transform.position;
         float elapsedTime = 0f;
-        float baseMoveDuration = _wantsToRun ? moveDuration / 2f : moveDuration;
+        float baseMoveDuration = _wantsToRun ? moveDuration / 1.5f : moveDuration;
         float currentMoveDuration = baseMoveDuration * direction.magnitude;
 
         while (elapsedTime < currentMoveDuration)
@@ -440,30 +477,30 @@ public class PlayerController : MonoBehaviour
     // ========= ОТПРАВКА В СЕТЬ =========
 
     private void SendPosition()
-{
-    if (WebSocketClient.Instance == null)
-        return;
-
-    Vector2 pos = transform.position;
-
-    // не слать, если почти не двигались
-    if (Vector2.Distance(pos, lastSentPos) < 0.01f)
-        return;
-
-    lastSentPos = pos;
-
-    NetMessageMove msg = new NetMessageMove
     {
-        type   = "move",
-        id     = myId,
-        x      = pos.x,
-        y      = pos.y,
-        dirX   = _lastDirection.x,
-        dirY   = _lastDirection.y,
-        moving = _isMoving
-    };
+        if (WebSocketClient.Instance == null)
+            return;
 
-    string json = JsonUtility.ToJson(msg);
-    WebSocketClient.Instance.Send(json);
-}
+        Vector2 pos = transform.position;
+
+        // не слать, если почти не двигались
+        if (Vector2.Distance(pos, lastSentPos) < 0.01f)
+            return;
+
+        lastSentPos = pos;
+
+        NetMessageMove msg = new NetMessageMove
+        {
+            type   = "move",
+            id     = myId,
+            x      = pos.x,
+            y      = pos.y,
+            dirX   = _lastDirection.x,
+            dirY   = _lastDirection.y,
+            moving = _isMoving
+        };
+
+        string json = JsonUtility.ToJson(msg);
+        WebSocketClient.Instance.Send(json);
+    }
 }
