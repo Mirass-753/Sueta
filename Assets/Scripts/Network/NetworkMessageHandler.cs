@@ -98,37 +98,51 @@ public static class NetworkMessageHandler
 
     // ---------- УРОН ОТ СЕРВЕРА ----------
 
-    private static void HandleDamage(string json)
+     public static void HandleDamage(string json)
     {
-        NetMessageDamageEvent dmg;
+        Debug.Log("[NET] RAW: " + json);
+        NetMessageDamageEvent msg;
+
         try
         {
-            dmg = JsonUtility.FromJson<NetMessageDamageEvent>(json);
+            msg = JsonUtility.FromJson<NetMessageDamageEvent>(json);
         }
-        catch
+        catch (System.Exception e)
         {
-            Debug.LogWarning($"[NET] Не удалось распарсить damage: {json}");
+            Debug.LogWarning("[NET] Failed to parse damage msg: " + e + " | json=" + json);
             return;
         }
 
-        if (dmg == null || string.IsNullOrEmpty(dmg.targetId))
-            return;
-
-        if (!Damageable.TryGetById(dmg.targetId, out var target) || target == null)
+        if (msg == null)
         {
-            Debug.LogWarning("[NET] Damage: не найден Damageable с id " + dmg.targetId);
+            Debug.LogWarning("[NET] Damage message is null | json=" + json);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(msg.targetId))
+        {
+            Debug.LogWarning("[NET] Damage msg without targetId: " + json);
+            return;
+        }
+
+        Debug.Log($"[NET] DAMAGE: source={msg.sourceId}, target={msg.targetId}, " +
+                  $"amount={msg.amount}, hp={msg.hp}");
+
+        // Ищем цель по networkId через реестр Damageable
+        if (!Damageable.TryGetById(msg.targetId, out var target))
+        {
+            Debug.LogWarning($"[NET] Damage target '{msg.targetId}' not found in Damageable registry");
             return;
         }
 
         if (target.health == null)
         {
-            Debug.LogWarning("[NET] Damage: у сущности нет HealthSystem");
+            Debug.LogWarning($"[NET] Damage target '{target.name}' has no HealthSystem");
             return;
         }
 
-        target.health.SetCurrentHpFromServer(dmg.hp);
-        hpCache[dmg.targetId] = dmg.hp;
-        Debug.Log($"[NET] Damage applied to {dmg.targetId}, hp={dmg.hp}");
+        // >>> ВОТ ЭТОТ ВЫЗОВ — САМОЕ ГЛАВНОЕ <<<
+        target.health.SetCurrentHpFromServer(msg.hp);
     }
 
     // ---------- СИНХРОНИЗАЦИЯ HP ДЛЯ НОВЫХ КЛИЕНТОВ ----------

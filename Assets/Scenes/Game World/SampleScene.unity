@@ -1486,6 +1486,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   autoConnectInEditor: 1
+  autoReconnect: 1
+  reconnectDelaySeconds: 2
+  productionUrl: wss://catlaw.online/game-ws
+  overrideUrlInEditor: 1
+  editorUrl: ws://127.0.0.1:3000
+  fallbackToProductionInEditor: 1
+  queuedMessageLimit: 64
 --- !u!114 &975965081
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3780,6 +3787,34 @@ PrefabInstance:
       propertyPath: combatMode
       value: 
       objectReference: {fileID: 8116034459824625603}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[0].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[1].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[2].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[3].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[4].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[5].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8056686759232378293, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: zones.Array.data[6].damageMultiplier
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

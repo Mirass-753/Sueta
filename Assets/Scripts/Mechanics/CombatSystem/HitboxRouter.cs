@@ -29,31 +29,46 @@ public class HitboxRouter : MonoBehaviour
             _attackerDamageable = attackerRoot.GetComponentInChildren<Damageable>();
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
+ private void OnTriggerEnter2D(Collider2D other)
+{
+    Debug.Log($"[HITBOX] trigger with {other.name}", other);
+
+    // 1. ищем Damageable у цели
+    var targetDamageable = other.GetComponentInParent<Damageable>();
+    if (targetDamageable == null)
     {
-        Debug.Log("[HITBOX] trigger with " + other.name);
-        // кого ударили
-        var targetDamageable = other.GetComponentInParent<Damageable>();
-        if (targetDamageable == null)
-            return;
+        Debug.LogWarning($"[HITBOX] NO Damageable found on {other.name} or its parents");
+        return;
+    }
 
-        // хитбоксы могут спауниться раньше, чем создаётся/инициализируется атакующий
-        // (например, снаряды). Поэтому перед атакой пробуем ещё раз найти Damageable.
-        ResolveAttackerDamageable();
+    Debug.Log(
+        $"[HITBOX] Found Damageable on {targetDamageable.gameObject.name}, " +
+        $"isNetwork={targetDamageable.isNetworkEntity}, id='{targetDamageable.networkId}'");
 
-        // не бьём сами себя
-        if (_attackerDamageable != null && targetDamageable == _attackerDamageable)
-            return;
+    // 2. актуализируем атакующего
+    ResolveAttackerDamageable();
 
-        // формируем данные атаки
-        AttackData data = new AttackData
-        {
-            baseDamage = baseDamage,
-            direction  = transform.right,      // направление стрелки
-            attacker   = attackerRoot != null ? attackerRoot : transform,
-            attackerDamageable = _attackerDamageable
-        };
+    // 3. не бьём сами себя
+    if (_attackerDamageable != null && targetDamageable == _attackerDamageable)
+    {
+        Debug.Log("[HITBOX] Hit self, ignored");
+        return;
+    }
 
-        targetDamageable.ApplyHit(data, other);
+    // 4. собираем данные атаки
+    AttackData data = new AttackData
+    {
+        baseDamage         = baseDamage,
+        direction          = transform.right,
+        attacker           = attackerRoot != null ? attackerRoot : transform,
+        attackerDamageable = _attackerDamageable
+    };
+
+    Debug.Log(
+        $"[HITBOX] Call ApplyHit: attacker={data.attacker.name}, " +
+        $"target={targetDamageable.gameObject.name}");
+
+    // 5. наносим удар (здесь уже дальше включается Damageable.ApplyHit и сеть)
+    targetDamageable.ApplyHit(data, other);
     }
 }

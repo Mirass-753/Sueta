@@ -22,17 +22,27 @@ public class WorldBars : MonoBehaviour
 
     void Awake()
     {
-        if (health != null) _hpMax = health.maxHealth;
-        if (energy != null) _enMax = energy.maxEnergy;
+        // На всякий случай — если забыли проставить в инспекторе
+        if (health == null)
+            health = GetComponentInParent<HealthSystem>();
+
+        if (energy == null)
+            energy = GetComponentInParent<EnergySystem>();
+
+        if (health != null)
+            _hpMax = health.maxHealth;
+
+        if (energy != null)
+            _enMax = energy.maxEnergy;
 
         if (healthFill != null)
         {
-            // фиксируем базу и сбрасываем позицию/скейл
             _healthBasePos = Vector3.zero;
             healthFill.localPosition = _healthBasePos;
             healthFill.localScale = Vector3.one;
             SetupBar(healthFill, Color.red);
         }
+
         if (energyFill != null)
         {
             _energyBasePos = new Vector3(0f, -spacing, 0f);
@@ -44,13 +54,33 @@ public class WorldBars : MonoBehaviour
 
     void LateUpdate()
     {
+        // держим бары на фиксированном смещении от головы
         transform.localPosition = new Vector3(horizontalOffset, verticalOffset, 0f);
 
-        if (healthFill != null && health != null && _hpMax > 0f)
-            SetFill(healthFill, health.CurrentHealth / _hpMax, _healthBasePos);
+        // HP
+        if (healthFill != null && health != null)
+        {
+            if (_hpMax <= 0f)
+                _hpMax = Mathf.Max(health.maxHealth, 0.0001f);
 
-        if (energyFill != null && energy != null && _enMax > 0f)
-            SetFill(energyFill, energy.CurrentEnergy / _enMax, _energyBasePos);
+            float ratio = Mathf.Clamp01(health.CurrentHealth / _hpMax);
+
+            // ВРЕМЕННЫЙ лог, чтобы увидеть, что бары читают hp
+            // (можешь выключить, когда убедишься, что всё ок).
+            // Debug.Log($"[BARS] {name}: hp={health.CurrentHealth}/{_hpMax}, ratio={ratio}");
+
+            SetFill(healthFill, ratio, _healthBasePos);
+        }
+
+        // Energy
+        if (energyFill != null && energy != null)
+        {
+            if (_enMax <= 0f)
+                _enMax = Mathf.Max(energy.maxEnergy, 0.0001f);
+
+            float ratio = Mathf.Clamp01(energy.CurrentEnergy / _enMax);
+            SetFill(energyFill, ratio, _energyBasePos);
+        }
     }
 
     void SetupBar(Transform t, Color color)
@@ -66,6 +96,6 @@ public class WorldBars : MonoBehaviour
         var s = t.localScale;
         s.x = barWidth * ratio;
         t.localScale = s;
-        t.localPosition = basePos; // фиксируем якорь, не двигаем по X
+        t.localPosition = basePos;
     }
 }

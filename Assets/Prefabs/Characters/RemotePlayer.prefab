@@ -176,6 +176,7 @@ GameObject:
   - component: {fileID: 8387039773413549807}
   - component: {fileID: -6143812347675896410}
   - component: {fileID: -2900725276455358713}
+  - component: {fileID: -8426365505372085517}
   m_Layer: 3
   m_Name: RemotePlayer
   m_TagString: Untagged
@@ -337,6 +338,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   id: 
+  damageable: {fileID: -6143812347675896410}
+  spriteRenderer: {fileID: 0}
 --- !u!114 &-6143812347675896410
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -352,12 +355,12 @@ MonoBehaviour:
   networkId: 
   isNetworkEntity: 0
   health: {fileID: -2900725276455358713}
-  energy: {fileID: 0}
+  energy: {fileID: -8426365505372085517}
   combatMode: {fileID: 0}
   zones:
   - zone: 3
     collider: {fileID: 2259203800107661083}
-    damageMultiplier: 0
+    damageMultiplier: 1
   blockMultiplier: 0.3
   parryMultiplier: 0
 --- !u!114 &-2900725276455358713
@@ -374,6 +377,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHp: 100
   currentHp: 100
+--- !u!114 &-8426365505372085517
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 201647836386465207}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9fb2cb715715a0419573e36ceac00b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxEnergy: 100
+  regenInCombatPerSec: 5
+  regenOutCombatPerSec: 10
+  selfDamagePercent: 0.01
 --- !u!1 &6774106985529295980
 GameObject:
   m_ObjectHideFlags: 0

@@ -66,8 +66,11 @@ public class HealthSystem : MonoBehaviour
     {
         float clamped = Mathf.Clamp(hp, 0f, maxHp);
         if (Mathf.Approximately(currentHp, clamped))
+        {
+            Debug.Log($"[HEALTH] {name}: server hp {hp} (clamped {clamped}) – no change, current={currentHp}");
             return;
-
+        }
+        Debug.Log($"[HEALTH] {name}: server hp {currentHp} -> {clamped}");
         currentHp = clamped;
         UpdateDeathFlag();
 
@@ -104,6 +107,8 @@ public class HealthSystem : MonoBehaviour
             _deathInvoked = false;
         }
     }
+
+    
 
 
 }

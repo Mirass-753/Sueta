@@ -43,7 +43,7 @@ public class WebSocketClient : MonoBehaviour
     [Header("URLs")]
     [Tooltip("Production WebSocket endpoint (default)")]
     [SerializeField]
-    private string productionUrl = "wss://catlaw.online/ws";
+    private string productionUrl = "wss://catlaw.online/game-ws";
 
 #if UNITY_EDITOR
     [Tooltip("Override URL when running in the Unity editor (e.g. local Node server)")]
