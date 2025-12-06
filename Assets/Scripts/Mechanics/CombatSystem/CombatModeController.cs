@@ -45,6 +45,10 @@ public class CombatModeController : MonoBehaviour
     [Tooltip("X: нормализованный угол (0 = в сторону стрелки, 1 = в противоположную). Y: множитель задержки 0..1.")]
     public AnimationCurve missCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
+    [Header("Collision vs Players")]
+    [SerializeField] private BoxCollider2D bodyCollider;   // тот же коллайдер, что и у Player
+    [SerializeField] private LayerMask playerLayer;        // слой игроков (например, 'Player')
+
     private bool _combatActive;
     private bool _isTeleporting;
     private bool _isBlocking;
@@ -229,111 +233,126 @@ public class CombatModeController : MonoBehaviour
             attackHitbox.enabled = active;
     }
 
+    // ============ ДВИЖЕНИЕ В БОЮ ============
+
     private void HandleMovementInput()
-{
-    if (_isBlocking)
-        return;
-
-    // направление от зажатых клавиш (для "просто держу кнопку и еду")
-    Vector2 heldDir = GetHeldDirection();
-    // направление от нового нажатия в этом кадре
-    Vector2 downDir = GetDownDirection();
-
-    if (_isTeleporting)
     {
-        // во время шага буферим ТОЛЬКО новые нажатия
-        if (downDir != Vector2.zero)
+        if (_isBlocking)
+            return;
+
+        // направление от зажатых клавиш (для "просто держу кнопку и еду")
+        Vector2 heldDir = GetHeldDirection();
+        // направление от нового нажатия в этом кадре
+        Vector2 downDir = GetDownDirection();
+
+        if (_isTeleporting)
         {
-            _queuedMoveDir = downDir;
-            _hasQueuedMoveDir = true;
+            // во время шага буферим ТОЛЬКО новые нажатия
+            if (downDir != Vector2.zero)
+            {
+                _queuedMoveDir = downDir;
+                _hasQueuedMoveDir = true;
+            }
+            return;
         }
-        return;
+
+        // приоритет — новое нажатие, иначе просто удержание
+        Vector2 useDir = downDir != Vector2.zero ? downDir : heldDir;
+
+        if (useDir == Vector2.zero)
+        {
+            _hasQueuedMoveDir = false;
+            _queuedMoveDir = Vector2.zero;
+            return;
+        }
+
+        _moveRoutine = StartCoroutine(TeleportStep(useDir));
     }
 
-    // приоритет — новое нажатие, иначе просто удержание
-    Vector2 useDir = downDir != Vector2.zero ? downDir : heldDir;
-
-    if (useDir == Vector2.zero)
+    private Vector2 GetHeldDirection()
     {
-        _hasQueuedMoveDir = false;
-        _queuedMoveDir = Vector2.zero;
-        return;
+        // Диагонали через Q/E/Z/C
+        if (Input.GetKey(KeyCode.Q)) return new Vector2(-1f, 1f);
+        if (Input.GetKey(KeyCode.E)) return new Vector2(1f, 1f);
+        if (Input.GetKey(KeyCode.Z)) return new Vector2(-1f, -1f);
+        if (Input.GetKey(KeyCode.C)) return new Vector2(1f, -1f);
+
+        float x = 0f, y = 0f;
+
+        // Горизонталь
+        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+            x = -1f;
+        else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+            x = 1f;
+
+        // Вертикаль
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+            y = 1f;
+        else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+            y = -1f;
+
+        // Убираем диагональ от двух кнопок — приоритет вертикали
+        if (x != 0f && y != 0f)
+            x = 0f;
+
+        if (x == 0f && y == 0f)
+            return Vector2.zero;
+
+        return new Vector2(x, y);
     }
 
-    _moveRoutine = StartCoroutine(TeleportStep(useDir));
-}
+    private Vector2 GetDownDirection()
+    {
+        // Диагонали через Q/E/Z/C
+        if (Input.GetKeyDown(KeyCode.Q)) return new Vector2(-1f, 1f);
+        if (Input.GetKeyDown(KeyCode.E)) return new Vector2(1f, 1f);
+        if (Input.GetKeyDown(KeyCode.Z)) return new Vector2(-1f, -1f);
+        if (Input.GetKeyDown(KeyCode.C)) return new Vector2(1f, -1f);
 
-/// <summary>
-/// Направление от ЗАЖАТЫХ клавиш (для непрерывного движения).
-/// </summary>
-private Vector2 GetHeldDirection()
-{
-    // Диагонали через Q/E/Z/C
-    if (Input.GetKey(KeyCode.Q)) return new Vector2(-1f, 1f);
-    if (Input.GetKey(KeyCode.E)) return new Vector2(1f, 1f);
-    if (Input.GetKey(KeyCode.Z)) return new Vector2(-1f, -1f);
-    if (Input.GetKey(KeyCode.C)) return new Vector2(1f, -1f);
+        float x = 0f, y = 0f;
 
-    float x = 0f, y = 0f;
+        // Горизонталь
+        if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))
+            x = -1f;
+        else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))
+            x = 1f;
 
-    // Горизонталь
-    if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-        x = -1f;
-    else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-        x = 1f;
+        // Вертикаль
+        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
+            y = 1f;
+        else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
+            y = -1f;
 
-    // Вертикаль
-    if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-        y = 1f;
-    else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
-        y = -1f;
+        // Убираем диагональ от двух кнопок — приоритет вертикали
+        if (x != 0f && y != 0f)
+            x = 0f;
 
-    // Убираем диагональ от двух кнопок — приоритет вертикали
-    if (x != 0f && y != 0f)
-        x = 0f;
+        if (x == 0f && y == 0f)
+            return Vector2.zero;
 
-    if (x == 0f && y == 0f)
-        return Vector2.zero;
+        return new Vector2(x, y);
+    }
 
-    return new Vector2(x, y);
-}
+    /// <summary>
+    /// Проверка, что в целевой точке не стоит другой игрок.
+    /// </summary>
+    private bool IsBlockedByOtherPlayerCombat(Vector2 targetWorldPos)
+    {
+        if (bodyCollider == null)
+            return false;
 
-/// <summary>
-/// Направление от НОВЫХ НАЖАТИЙ в этом кадре (для шага и буфера).
-/// </summary>
-private Vector2 GetDownDirection()
-{
-    // Диагонали через Q/E/Z/C
-    if (Input.GetKeyDown(KeyCode.Q)) return new Vector2(-1f, 1f);
-    if (Input.GetKeyDown(KeyCode.E)) return new Vector2(1f, 1f);
-    if (Input.GetKeyDown(KeyCode.Z)) return new Vector2(-1f, -1f);
-    if (Input.GetKeyDown(KeyCode.C)) return new Vector2(1f, -1f);
+        Vector2 size = bodyCollider.bounds.size * 0.9f;
 
-    float x = 0f, y = 0f;
+        Collider2D hit = Physics2D.OverlapBox(
+            targetWorldPos,
+            size,
+            0f,
+            playerLayer
+        );
 
-    // Горизонталь
-    if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))
-        x = -1f;
-    else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))
-        x = 1f;
-
-    // Вертикаль
-    if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
-        y = 1f;
-    else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
-        y = -1f;
-
-    // Убираем диагональ от двух кнопок — приоритет вертикали
-    if (x != 0f && y != 0f)
-        x = 0f;
-
-    if (x == 0f && y == 0f)
-        return Vector2.zero;
-
-    return new Vector2(x, y);
-}
-
-
+        if (hit == null) return false;
+        return hit.gameObject != gameObject;
+    }
 
     private IEnumerator TeleportStep(Vector2 dir)
     {
@@ -349,6 +368,15 @@ private Vector2 GetDownDirection()
         Vector2Int nextCell = currentCell + step;
         Vector2 targetPos = CellToWorld(nextCell);
 
+        // 1) коллизия с другими игроками
+        if (IsBlockedByOtherPlayerCombat(targetPos))
+        {
+            _isTeleporting = false;
+            _moveRoutine = null;
+            yield break;
+        }
+
+        // 2) препятствия по гриду
         bool canMove = occupancyManager == null || occupancyManager.TryMove(currentCell, nextCell);
         if (!canMove)
         {
@@ -415,9 +443,6 @@ private Vector2 GetDownDirection()
 
         return maxDelaySeconds * coeff;
     }
-
-   
-
 
     private Vector2Int WorldToCell(Vector2 worldPos)
     {

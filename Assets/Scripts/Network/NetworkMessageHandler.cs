@@ -1,18 +1,28 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// Базовый тип, чтобы вытащить поле "type" из любого сообщения.
 public static class NetworkMessageHandler
 {
-    // id игрока -> его визуальный удалённый кот
+    // ----- Удалённые игроки -----
     private static readonly Dictionary<string, RemotePlayer> players =
         new Dictionary<string, RemotePlayer>();
 
-    // Кеш HP от сервера, чтобы применять его даже если объект ещё не создан
+    // ----- Кеш HP -----
     private static readonly Dictionary<string, float> hpCache =
         new Dictionary<string, float>();
 
-    /// Точка входа: сюда WebSocketClient передаёт сырую строку json.
+    // ----- Кеш энергии -----
+    private struct EnergyCacheEntry
+    {
+        public float energy;
+        public float maxEnergy;
+    }
+
+    private static readonly Dictionary<string, EnergyCacheEntry> energyCache =
+        new Dictionary<string, EnergyCacheEntry>();
+
+    // ================== ВХОДНАЯ ТОЧКА ==================
+
     public static void Handle(string json)
     {
         if (string.IsNullOrEmpty(json))
@@ -25,44 +35,31 @@ public static class NetworkMessageHandler
         }
         catch
         {
-            Debug.LogWarning($"[Net] Не удалось распарсить тип сообщения: {json}");
+            Debug.LogWarning($"[NET] Не удалось распарсить базовое сообщение: {json}");
             return;
         }
 
         if (baseMsg == null || string.IsNullOrEmpty(baseMsg.type))
         {
-            // старые сообщения без type можно либо игнорировать, либо считать move
-            // здесь строго: игнорируем
-            Debug.LogWarning($"[Net] Сообщение без type: {json}");
+            Debug.LogWarning($"[NET] Сообщение без type: {json}");
             return;
         }
 
         switch (baseMsg.type)
         {
-            case "move":
-                HandleMove(json);
-                break;
-
-            case "damage":
-                HandleDamage(json);
-                break;
-
-            case "hp_sync":
-                HandleHpSync(json);
-                break;
-
-            case "disconnect":
-                HandleDisconnect(json);
-                break;
-
+            case "move":          HandleMove(json);         break;
+            case "damage":        HandleDamage(json);       break;
+            case "hp_sync":       HandleHpSync(json);       break;
+            case "energy_update": HandleEnergyUpdate(json); break;
+            case "energy_sync":   HandleEnergySync(json);   break;
+            case "disconnect":    HandleDisconnect(json);   break;
             default:
-                // необязательный лог:
-                // Debug.Log($"[Net] Неизвестный type: {baseMsg.type}");
+                // неизвестные типы просто игнорируем
                 break;
         }
     }
 
-    // ---------- ДВИЖЕНИЕ ----------
+    // ================== ДВИЖЕНИЕ ==================
 
     private static void HandleMove(string json)
     {
@@ -73,14 +70,14 @@ public static class NetworkMessageHandler
         }
         catch
         {
-            Debug.LogWarning($"[Net] Не удалось распарсить move: {json}");
+            Debug.LogWarning($"[NET] Не удалось распарсить move: {json}");
             return;
         }
 
         if (move == null || string.IsNullOrEmpty(move.id))
             return;
 
-        // свои же сообщения игнорируем (локальный кот и так знает, где он)
+        // свои же сообщения игнорируем
         if (move.id == PlayerController.LocalPlayerId)
             return;
 
@@ -88,7 +85,10 @@ public static class NetworkMessageHandler
         {
             rp = RemotePlayer.Create(move.id);
             players[move.id] = rp;
+
+            // подтягиваем кеши, если уже приходили hp/energy до спавна
             ApplyCachedHp(move.id, rp);
+            ApplyCachedEnergy(move.id, rp);
         }
 
         Vector2 pos = new Vector2(move.x, move.y);
@@ -96,13 +96,13 @@ public static class NetworkMessageHandler
         rp.SetNetworkState(pos, dir, move.moving);
     }
 
-    // ---------- УРОН ОТ СЕРВЕРА ----------
+    // ================== УРОН (HP) ==================
 
-     public static void HandleDamage(string json)
+    public static void HandleDamage(string json)
     {
         Debug.Log("[NET] RAW: " + json);
-        NetMessageDamageEvent msg;
 
+        NetMessageDamageEvent msg;
         try
         {
             msg = JsonUtility.FromJson<NetMessageDamageEvent>(json);
@@ -125,11 +125,12 @@ public static class NetworkMessageHandler
             return;
         }
 
-        Debug.Log($"[NET] DAMAGE: source={msg.sourceId}, target={msg.targetId}, " +
-                  $"amount={msg.amount}, hp={msg.hp}");
+        Debug.Log($"[NET] DAMAGE: source={msg.sourceId}, target={msg.targetId}, amount={msg.amount}, hp={msg.hp}");
 
-        // Ищем цель по networkId через реестр Damageable
-        if (!Damageable.TryGetById(msg.targetId, out var target))
+        // кладём HP в кеш
+        hpCache[msg.targetId] = msg.hp;
+
+        if (!Damageable.TryGetById(msg.targetId, out var target) || target == null)
         {
             Debug.LogWarning($"[NET] Damage target '{msg.targetId}' not found in Damageable registry");
             return;
@@ -141,11 +142,8 @@ public static class NetworkMessageHandler
             return;
         }
 
-        // >>> ВОТ ЭТОТ ВЫЗОВ — САМОЕ ГЛАВНОЕ <<<
         target.health.SetCurrentHpFromServer(msg.hp);
     }
-
-    // ---------- СИНХРОНИЗАЦИЯ HP ДЛЯ НОВЫХ КЛИЕНТОВ ----------
 
     private static void HandleHpSync(string json)
     {
@@ -177,7 +175,90 @@ public static class NetworkMessageHandler
         }
     }
 
-    // ---------- ОТКЛЮЧЕНИЕ ИГРОКА ----------
+    // ================== ЭНЕРГИЯ (ЩИТ) ==================
+
+    private static void HandleEnergyUpdate(string json)
+    {
+        NetMessageEnergyUpdate msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageEnergyUpdate>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить energy_update: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.targetId))
+        {
+            Debug.LogWarning($"[NET] energy_update без targetId: {json}");
+            return;
+        }
+
+        // кешируем значение
+        energyCache[msg.targetId] = new EnergyCacheEntry
+        {
+            energy = msg.energy,
+            maxEnergy = msg.maxEnergy
+        };
+
+        if (!Damageable.TryGetById(msg.targetId, out var target) || target == null)
+        {
+            Debug.LogWarning($"[NET] energy_update: цель '{msg.targetId}' не найдена");
+            return;
+        }
+
+        if (target.energy == null)
+        {
+            Debug.LogWarning($"[NET] energy_update: у цели '{target.name}' нет EnergySystem");
+            return;
+        }
+
+        if (msg.maxEnergy > 0f)
+            target.energy.maxEnergy = msg.maxEnergy;
+
+        target.energy.SetCurrentEnergyFromServer(msg.energy);
+    }
+
+    private static void HandleEnergySync(string json)
+    {
+        NetMessageEnergySync sync;
+        try
+        {
+            sync = JsonUtility.FromJson<NetMessageEnergySync>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить energy_sync: {json}");
+            return;
+        }
+
+        if (sync?.entities == null)
+            return;
+
+        foreach (var e in sync.entities)
+        {
+            if (e == null || string.IsNullOrEmpty(e.id))
+                continue;
+
+            energyCache[e.id] = new EnergyCacheEntry
+            {
+                energy = e.energy,
+                maxEnergy = e.maxEnergy
+            };
+
+            if (Damageable.TryGetById(e.id, out var dmg) && dmg?.energy != null)
+            {
+                if (e.maxEnergy > 0f)
+                    dmg.energy.maxEnergy = e.maxEnergy;
+
+                dmg.energy.SetCurrentEnergyFromServer(e.energy);
+            }
+        }
+    }
+
+    // ================== DISCONNECT ==================
 
     [System.Serializable]
     private class NetMessageDisconnect
@@ -195,7 +276,7 @@ public static class NetworkMessageHandler
         }
         catch
         {
-            Debug.LogWarning($"[Net] Не удалось распарсить disconnect: {json}");
+            Debug.LogWarning($"[NET] Не удалось распарсить disconnect: {json}");
             return;
         }
 
@@ -209,9 +290,10 @@ public static class NetworkMessageHandler
 
         players.Remove(disc.id);
         hpCache.Remove(disc.id);
+        energyCache.Remove(disc.id);
     }
 
-    // ---------- Сброс мира (например, при смене сцены) ----------
+    // ================== СБРОС МИРА ==================
 
     public static void ClearAll()
     {
@@ -220,11 +302,13 @@ public static class NetworkMessageHandler
             if (kv.Value != null)
                 Object.Destroy(kv.Value.gameObject);
         }
+
         players.Clear();
         hpCache.Clear();
+        energyCache.Clear();
     }
 
-    // ---------- ВНУТРЕННИЕ УТИЛИТЫ ----------
+    // ================== ВСПОМОГАТЕЛЬНЫЕ ==================
 
     private static void ApplyCachedHp(string id, RemotePlayer rp)
     {
@@ -239,5 +323,41 @@ public static class NetworkMessageHandler
             return;
 
         dmg.health.SetCurrentHpFromServer(hp);
+    }
+
+    private static void ApplyCachedEnergy(string id, RemotePlayer rp)
+    {
+        if (rp == null || string.IsNullOrEmpty(id))
+            return;
+
+        if (!energyCache.TryGetValue(id, out var entry))
+            return;
+
+        var dmg = rp.GetComponent<Damageable>();
+        if (dmg?.energy == null)
+            return;
+
+        if (entry.maxEnergy > 0f)
+            dmg.energy.maxEnergy = entry.maxEnergy;
+
+        dmg.energy.SetCurrentEnergyFromServer(entry.energy);
+    }
+
+    /// <summary>
+    /// Вытащить закешированную энергию для Damageable,
+    /// когда объект только появился (используется в EnergySystem.ApplyCachedEnergyIfAny).
+    /// </summary>
+    public static bool TryGetCachedEnergy(string id, out float energy, out float maxEnergy)
+    {
+        if (energyCache.TryGetValue(id, out var entry))
+        {
+            energy = entry.energy;
+            maxEnergy = entry.maxEnergy;
+            return true;
+        }
+
+        energy = 0f;
+        maxEnergy = 0f;
+        return false;
     }
 }

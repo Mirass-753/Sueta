@@ -117,17 +117,16 @@ public class Damageable : MonoBehaviour
         return null;
     }
 
- public void ApplyHit(AttackData data, Collider2D hitCollider)
+public void ApplyHit(AttackData data, Collider2D hitCollider)
 {
     bool healthIsNull = (health == null);
     bool energyIsNull = (energy == null);
 
     Debug.Log(
-        $"[DMG] ApplyHit on {name}: " +
-        $"isNetworkEntity={isNetworkEntity}, id='{networkId}', " +
-        $"healthNull={healthIsNull}, energyNull={energyIsNull}");
+        $"[DMG] ApplyHit on {name}: isNetworkEntity={isNetworkEntity}, " +
+        $"id='{networkId}', healthNull={healthIsNull}, energyNull={energyIsNull}");
 
-    // Если это НЕ сетевой объект и у него нет health — просто игнорируем хит
+    // Если это НЕ сетевой объект и у него нет health — игнорируем
     if (healthIsNull && !isNetworkEntity)
     {
         Debug.LogWarning(
@@ -139,91 +138,116 @@ public class Damageable : MonoBehaviour
     float dmg = data.baseDamage;
     var zone = FindZone(hitCollider);
     if (zone != null)
-    {
         dmg *= zone.damageMultiplier;
-    }
 
     // ---------- 2. Блок / парри ----------
     bool isBlocking = combatMode != null && combatMode.IsBlocking;
-    bool isParry    = combatMode != null && combatMode.IsInParryWindow;
+    bool isParry   = combatMode != null && combatMode.IsInParryWindow;
 
     if (isParry)
         dmg *= parryMultiplier;
     else if (isBlocking)
         dmg *= blockMultiplier;
 
+    if (dmg <= 0f)
+        return;
+
     // ---------- 3. Щит / энергия ----------
-    float remaining = dmg;
+    float remaining   = dmg;   // то, что пойдёт в HP
+    float energySpent = 0f;    // сколько списали с энергии
+
+    float energyBefore  = 0f;
+    float energyThresh  = 0f;
+    bool  hasEnergy     = !energyIsNull;
+
     if (!energyIsNull)
     {
-        remaining = energy.AbsorbDamage(dmg);
+        energyBefore = energy.CurrentEnergy;
+        energyThresh = energy.maxEnergy * 0.5f;   // 50%
+
+        // считаем, сколько энергии поглотит удар
+        remaining   = energy.AbsorbDamage(dmg);   // вернёт "остаток" урона
+        energySpent = Mathf.Max(0f, dmg - remaining);
+
+        // ГЕЙТ НА 50%:
+        // если ДО удара энергии было больше половины,
+        // здоровье в ЭТОМ ударе вообще не трогаем,
+        // даже если удар снес энергию ниже порога.
+        if (energyBefore > energyThresh)
+        {
+            remaining = 0f;
+        }
     }
 
     Debug.Log(
-        $"[DMG-CHECK] after energy: base={data.baseDamage}, " +
-        $"final={remaining}, isNetworkEntity={isNetworkEntity}, " +
-        $"networkId='{networkId}'");
+        $"[DMG-CHECK] after energy: base={dmg}, final={remaining}, " +
+        $"isNetworkEntity={isNetworkEntity}, networkId='{networkId}'");
 
-    // Для НЕсетевых целей: если щит всё съел — дальше нечего делать
-    if (remaining <= 0f && !isNetworkEntity)
-    {
-        return;
-    }
-
-    // ---------- 4. СЕТЕВАЯ ВЕТКА (PvP / сетевые сущности) ----------
+    // ---------- 4. СЕТЕВАЯ ВЕТКА ----------
     if (isNetworkEntity && !string.IsNullOrEmpty(networkId))
     {
-        // Даже если remaining <= 0, всё равно отправим небольшой тик урона,
-        // чтобы сервер гарантированно получил запрос.
-        float amountForServer = remaining > 0f
-            ? remaining
-            : Mathf.Max(0.01f, dmg);
-
         var ws = WebSocketClient.Instance;
         if (ws == null)
         {
             Debug.LogWarning(
                 $"[NET] damage_request SKIPPED ({name}): " +
-                $"WebSocketClient.Instance is null, applying local damage amount={amountForServer}");
+                $"WebSocketClient.Instance is null, applying local damage={remaining}");
 
-            if (!healthIsNull)
-                health.TakeDamage(amountForServer);
+            if (!healthIsNull && remaining > 0f)
+                health.TakeDamage(remaining);
 
             return;
         }
 
-        // Пытаемся взять sourceId из атакующего Damageable
-        string sourceId = null;
-        if (data.attackerDamageable != null &&
-            data.attackerDamageable.isNetworkEntity &&
-            !string.IsNullOrEmpty(data.attackerDamageable.networkId))
+        // Сначала отправляем списание энергии, если что-то потратили
+        if (hasEnergy && energySpent > 0f)
         {
-            sourceId = data.attackerDamageable.networkId;
+            var eReq = new NetMessageEnergyRequest
+            {
+                type     = "energy_request",
+                targetId = networkId,
+                amount   = energySpent
+            };
+
+            string eJson = JsonUtility.ToJson(eReq);
+            Debug.Log($"[DMG-NET] SEND energy_request: {eJson}");
+            ws.Send(eJson);
         }
 
-        var req = new NetMessageDamageRequest
+        // Потом — урон по HP, НО ТОЛЬКО ЕСЛИ ЧТО-ТО ОСТАЛОСЬ
+        if (remaining > 0f)
         {
-            type     = "damage_request",
-            sourceId = sourceId,
-            targetId = networkId,
-            amount   = amountForServer,
-            zone     = zone != null ? zone.zone.ToString() : ""
-        };
+            string sourceId = null;
+            if (data.attackerDamageable != null &&
+                data.attackerDamageable.isNetworkEntity &&
+                !string.IsNullOrEmpty(data.attackerDamageable.networkId))
+            {
+                sourceId = data.attackerDamageable.networkId;
+            }
 
-        string json = JsonUtility.ToJson(req);
-        Debug.Log($"[DMG-NET] SEND damage_request: {json}");
-        ws.Send(json);
+            var dReq = new NetMessageDamageRequest
+            {
+                type     = "damage_request",
+                sourceId = sourceId,
+                targetId = networkId,
+                amount   = remaining,
+                zone     = zone != null ? zone.zone.ToString() : ""
+            };
 
-        // Важно: локально HP не меняем — ждём пакет "damage" от сервера
+            string dJson = JsonUtility.ToJson(dReq);
+            Debug.Log($"[DMG-NET] SEND damage_request: {dJson}");
+            ws.Send(dJson);
+        }
+
+        // Локально HP не меняем — ждём события "damage" от сервера.
         return;
     }
 
     // ---------- 5. Оффлайн / несетевые цели ----------
     if (!healthIsNull && remaining > 0f)
-    {
         health.TakeDamage(remaining);
-    }
 }
+
 
 
 
