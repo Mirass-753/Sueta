@@ -123,10 +123,11 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
     bool energyIsNull = (energy == null);
 
     Debug.Log(
-        $"[DMG] ApplyHit on {name}: isNetworkEntity={isNetworkEntity}, " +
-        $"id='{networkId}', healthNull={healthIsNull}, energyNull={energyIsNull}");
+        $"[DMG] ApplyHit on {name}: " +
+        $"isNetworkEntity={isNetworkEntity}, id='{networkId}', " +
+        $"healthNull={healthIsNull}, energyNull={energyIsNull}");
 
-    // Если это НЕ сетевой объект и у него нет health — игнорируем
+    // Локальный (несетевой) объект без health — игнорируем
     if (healthIsNull && !isNetworkEntity)
     {
         Debug.LogWarning(
@@ -142,48 +143,46 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
 
     // ---------- 2. Блок / парри ----------
     bool isBlocking = combatMode != null && combatMode.IsBlocking;
-    bool isParry   = combatMode != null && combatMode.IsInParryWindow;
+    bool isParry    = combatMode != null && combatMode.IsInParryWindow;
 
     if (isParry)
         dmg *= parryMultiplier;
     else if (isBlocking)
         dmg *= blockMultiplier;
 
-    if (dmg <= 0f)
-        return;
-
     // ---------- 3. Щит / энергия ----------
-    float remaining   = dmg;   // то, что пойдёт в HP
-    float energySpent = 0f;    // сколько списали с энергии
+    float remaining   = dmg; // то, что пойдёт в HP
+    float energySpent = 0f;  // то, что съела энергия
+    float energyFracBefore = 0f;
 
-    float energyBefore  = 0f;
-    float energyThresh  = 0f;
-    bool  hasEnergy     = !energyIsNull;
-
-    if (!energyIsNull)
+    if (!energyIsNull && dmg > 0f)
     {
-        energyBefore = energy.CurrentEnergy;
-        energyThresh = energy.maxEnergy * 0.5f;   // 50%
+        // энергия до удара
+        float energyBefore = energy.CurrentEnergy;
+        if (energy.maxEnergy > 0f)
+            energyFracBefore = energyBefore / energy.maxEnergy;
 
-        // считаем, сколько энергии поглотит удар
-        remaining   = energy.AbsorbDamage(dmg);   // вернёт "остаток" урона
-        energySpent = Mathf.Max(0f, dmg - remaining);
+        // стандартное поглощение: возвращает остаток в HP
+        remaining = energy.AbsorbDamage(dmg);
+        energySpent = dmg - remaining;
 
-        // ГЕЙТ НА 50%:
-        // если ДО удара энергии было больше половины,
-        // здоровье в ЭТОМ ударе вообще не трогаем,
-        // даже если удар снес энергию ниже порога.
-        if (energyBefore > energyThresh)
+        // ПРАВИЛО: пока энергии > 50% – HP не трогаем, всё идёт в энергию
+        if (energyFracBefore > 0.5f)
         {
             remaining = 0f;
         }
     }
 
     Debug.Log(
-        $"[DMG-CHECK] after energy: base={dmg}, final={remaining}, " +
-        $"isNetworkEntity={isNetworkEntity}, networkId='{networkId}'");
+        $"[DMG-CHECK] after energy: base={dmg}, remaining={remaining}, " +
+        $"energySpent={energySpent}, isNetworkEntity={isNetworkEntity}, " +
+        $"networkId='{networkId}'");
 
-    // ---------- 4. СЕТЕВАЯ ВЕТКА ----------
+    // Если урона по HP не осталось и это НЕ сетевой объект — всё, выходим
+    if (remaining <= 0f && !isNetworkEntity)
+        return;
+
+    // ---------- 4. СЕТЕВАЯ ВЕТКА (игроки / сетевые сущности) ----------
     if (isNetworkEntity && !string.IsNullOrEmpty(networkId))
     {
         var ws = WebSocketClient.Instance;
@@ -191,16 +190,16 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
         {
             Debug.LogWarning(
                 $"[NET] damage_request SKIPPED ({name}): " +
-                $"WebSocketClient.Instance is null, applying local damage={remaining}");
-
+                $"WebSocketClient.Instance is null, applying local damage remaining={remaining}");
+            
+            // как оффлайн-цель
             if (!healthIsNull && remaining > 0f)
                 health.TakeDamage(remaining);
-
             return;
         }
 
-        // Сначала отправляем списание энергии, если что-то потратили
-        if (hasEnergy && energySpent > 0f)
+        // 4.1. Сначала отправляем энергию (сколько щит съел)
+        if (!energyIsNull && energySpent > 0f)
         {
             var eReq = new NetMessageEnergyRequest
             {
@@ -214,7 +213,7 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
             ws.Send(eJson);
         }
 
-        // Потом — урон по HP, НО ТОЛЬКО ЕСЛИ ЧТО-ТО ОСТАЛОСЬ
+        // 4.2. Потом — урон по HP (ТОЛЬКО если что-то осталось)
         if (remaining > 0f)
         {
             string sourceId = null;
@@ -225,7 +224,7 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
                 sourceId = data.attackerDamageable.networkId;
             }
 
-            var dReq = new NetMessageDamageRequest
+            var req = new NetMessageDamageRequest
             {
                 type     = "damage_request",
                 sourceId = sourceId,
@@ -234,12 +233,12 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
                 zone     = zone != null ? zone.zone.ToString() : ""
             };
 
-            string dJson = JsonUtility.ToJson(dReq);
-            Debug.Log($"[DMG-NET] SEND damage_request: {dJson}");
-            ws.Send(dJson);
+            string json = JsonUtility.ToJson(req);
+            Debug.Log($"[DMG-NET] SEND damage_request: {json}");
+            ws.Send(json);
         }
 
-        // Локально HP не меняем — ждём события "damage" от сервера.
+        // ЛОКАЛЬНО HP/энергию не меняем — ждём damage/energy_update от сервера.
         return;
     }
 
