@@ -46,8 +46,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba787886236c4464282d0edc3dce82bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  health: {fileID: 0}
-  energy: {fileID: 0}
+  health: {fileID: 4177034463732382566}
+  energy: {fileID: 1547897374385330926}
   healthFill: {fileID: 1536511571223353980}
   energyFill: {fileID: 5986823849959207822}
   barWidth: 6
@@ -238,7 +238,7 @@ GameObject:
   - component: {fileID: 2008015335367444296}
   - component: {fileID: 8193280113620886619}
   m_Layer: 3
-  m_Name: RemoteArrow
+  m_Name: Arrow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -325,7 +325,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rotationSpeedDegPerSec: 72
   hideWhenNotCombat: 0
-  allowPlayerInput: 1
+  allowPlayerInput: 0
 --- !u!114 &9196859711056664544
 MonoBehaviour:
   m_ObjectHideFlags: 0
