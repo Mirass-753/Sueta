@@ -151,32 +151,44 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
         dmg *= blockMultiplier;
 
     // ---------- 3. Щит / энергия ----------
-    float remaining   = dmg; // то, что пойдёт в HP
-    float energySpent = 0f;  // то, что съела энергия
-    float energyFracBefore = 0f;
+    float remaining     = dmg; // то, что пойдёт в HP
+    float energySpent   = 0f;  // то, что съела энергия
+    float energyBefore  = 0f;
+    float fracBefore    = 0f;
 
-    if (!energyIsNull && dmg > 0f)
+    if (!energyIsNull && dmg > 0f && energy.maxEnergy > 0f)
     {
-        // энергия до удара
-        float energyBefore = energy.CurrentEnergy;
-        if (energy.maxEnergy > 0f)
-            energyFracBefore = energyBefore / energy.maxEnergy;
+        energyBefore = energy.CurrentEnergy;
+        fracBefore   = energyBefore / energy.maxEnergy;
 
-        // стандартное поглощение: возвращает остаток в HP
-        remaining = energy.AbsorbDamage(dmg);
-        energySpent = dmg - remaining;
-
-        // ПРАВИЛО: пока энергии > 50% – HP не трогаем, всё идёт в энергию
-        if (energyFracBefore > 0.5f)
+        // Пока энергии >= 50% — она работает как полноценный щит:
+        // весь урон уходит в энергию, HP не трогаем.
+        if (fracBefore >= 0.5f)
         {
-            remaining = 0f;
+            energySpent = energy.Spend(dmg);
+            remaining   = 0f;
+        }
+        else
+        {
+            // Ниже порога 50% — каждый удар бьёт и по энергии, и по HP.
+            // Коэффициент можно подкрутить.
+            const float hpShare = 0.5f; // 50% урона гарантированно по HP
+
+            float dmgToEnergy = dmg * (1f - hpShare);
+
+            // тратим энергию только на её часть урона
+            energySpent = energy.Spend(dmgToEnergy);
+
+            // всё остальное идёт в HP (включая ту часть, которую
+            // энергия не смогла покрыть)
+            remaining = dmg - energySpent;
         }
     }
 
     Debug.Log(
         $"[DMG-CHECK] after energy: base={dmg}, remaining={remaining}, " +
-        $"energySpent={energySpent}, isNetworkEntity={isNetworkEntity}, " +
-        $"networkId='{networkId}'");
+        $"energySpent={energySpent}, energyBefore={energyBefore}, fracBefore={fracBefore}, " +
+        $"isNetworkEntity={isNetworkEntity}, networkId='{networkId}'");
 
     // Если урона по HP не осталось и это НЕ сетевой объект — всё, выходим
     if (remaining <= 0f && !isNetworkEntity)
@@ -191,14 +203,14 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
             Debug.LogWarning(
                 $"[NET] damage_request SKIPPED ({name}): " +
                 $"WebSocketClient.Instance is null, applying local damage remaining={remaining}");
-            
-            // как оффлайн-цель
+
             if (!healthIsNull && remaining > 0f)
                 health.TakeDamage(remaining);
+
             return;
         }
 
-        // 4.1. Сначала отправляем энергию (сколько щит съел)
+        // 4.1. Сначала отправляем, сколько энергии потратили
         if (!energyIsNull && energySpent > 0f)
         {
             var eReq = new NetMessageEnergyRequest
@@ -246,8 +258,6 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
     if (!healthIsNull && remaining > 0f)
         health.TakeDamage(remaining);
 }
-
-
 
 
 }

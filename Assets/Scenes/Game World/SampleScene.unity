@@ -1257,6 +1257,87 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!1001 &803808393
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 101550936111694561, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_Name
+      value: RemoteArrow
+      objectReference: {fileID: 0}
+    - target: {fileID: 201647836386465207, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_Name
+      value: RemotePlayer
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832486066209651187, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 101550936111694561, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 803808395}
+  m_SourcePrefab: {fileID: 100100000, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+--- !u!1 &803808394 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 101550936111694561, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+  m_PrefabInstance: {fileID: 803808393}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &803808395
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 803808394}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e30aa90f4fe8809409ddc963327c08bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!212 &815695528 stripped
 SpriteRenderer:
   m_CorrespondingSourceObject: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
@@ -1485,13 +1566,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ddc5eb4633ca003498a8f25f4ee78206, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  autoConnectInEditor: 1
+  autoConnect: 1
   autoReconnect: 1
   reconnectDelaySeconds: 2
   productionUrl: wss://catlaw.online/game-ws
-  overrideUrlInEditor: 1
+  useEditorUrl: 1
   editorUrl: ws://127.0.0.1:3000
-  fallbackToProductionInEditor: 1
   queuedMessageLimit: 64
 --- !u!114 &975965081
 MonoBehaviour:
@@ -3713,12 +3793,20 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 8116034459824625615}
     - target: {fileID: 582673235011879516, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: attackHoldInterval
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 582673235011879516, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: playerLayer.m_Bits
       value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 582673235011879516, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: attackWindowSeconds
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 582673235011879516, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: combatSpeedMultiplier
-      value: 3.3
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 728643132065895907, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3792,6 +3880,10 @@ PrefabInstance:
       propertyPath: occupancyManager
       value: 
       objectReference: {fileID: 1527746147}
+    - target: {fileID: 3073060032690685179, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
+      propertyPath: selfDamagePercent
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3497931571330392339, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: owner
       value: 
@@ -3933,3 +4025,4 @@ SceneRoots:
   - {fileID: 975965079}
   - {fileID: 1253340271}
   - {fileID: 7651525271321306612}
+  - {fileID: 803808393}

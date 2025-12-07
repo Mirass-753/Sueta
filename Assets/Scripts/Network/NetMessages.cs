@@ -19,6 +19,7 @@ public class NetMessageMove
     public float dirX;
     public float dirY;
     public bool moving;
+    public float aimAngle;
 }
 
 /// Клиент → сервер: запрос нанести урон.

@@ -14,6 +14,7 @@ public class RemotePlayer : MonoBehaviour
     [Header("Components")]
     [SerializeField] private Damageable damageable;
     [SerializeField] private SpriteRenderer spriteRenderer;
+    [SerializeField] private RemoteArrowView arrowView;
 
     private Vector2 targetPos;
     private Vector2 lastDir;
@@ -73,7 +74,7 @@ public class RemotePlayer : MonoBehaviour
 
     // ---------- ПРИЁМ СОСТОЯНИЯ СЕТИ ----------
 
-    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving)
+    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving, float aimAngle)
     {
         targetPos = pos;
         lastDir = dir;
@@ -91,6 +92,10 @@ public class RemotePlayer : MonoBehaviour
             if (lastDir.x > 0.01f) spriteRenderer.flipX = true;
             else if (lastDir.x < -0.01f) spriteRenderer.flipX = false;
         }
+        if (arrowView != null)
+    {
+        arrowView.SetAngle(aimAngle);
+    }
     }
 
     // ---------- ОБНОВЛЕНИЕ ПОЗИЦИИ ----------
