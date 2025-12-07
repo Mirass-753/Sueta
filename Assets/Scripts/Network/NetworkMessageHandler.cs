@@ -94,7 +94,7 @@ public static class NetworkMessageHandler
         Vector2 pos = new Vector2(move.x, move.y);
         Vector2 dir = new Vector2(move.dirX, move.dirY);
         float aimAngle = move.aimAngle; // может быть 0
-        rp.SetNetworkState(pos, dir, move.moving);
+        rp.SetNetworkState(pos, dir, move.moving, move.aimAngle);
     }
 
     // ================== УРОН (HP) ==================

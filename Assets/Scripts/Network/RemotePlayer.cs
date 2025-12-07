@@ -74,7 +74,7 @@ public class RemotePlayer : MonoBehaviour
 
     // ---------- ПРИЁМ СОСТОЯНИЯ СЕТИ ----------
 
-    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving, float aimAngle)
+    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving, float aimAngle = 0f)
     {
         targetPos = pos;
         lastDir = dir;

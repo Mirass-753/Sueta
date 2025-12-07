@@ -13,8 +13,9 @@ GameObject:
   - component: {fileID: 123235306484945585}
   - component: {fileID: 4268822084957479787}
   - component: {fileID: 49403660869835040}
+  - component: {fileID: 7503678108471594100}
   m_Layer: 3
-  m_Name: Arrow
+  m_Name: RemoteArrow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -161,6 +162,18 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 0.63, y: 0.125}
   m_EdgeRadius: 0
+--- !u!114 &7503678108471594100
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 101550936111694561}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e30aa90f4fe8809409ddc963327c08bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &201647836386465207
 GameObject:
   m_ObjectHideFlags: 0
@@ -340,6 +353,7 @@ MonoBehaviour:
   id: 
   damageable: {fileID: -6143812347675896410}
   spriteRenderer: {fileID: 0}
+  arrowView: {fileID: 0}
 --- !u!114 &-6143812347675896410
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -393,6 +407,8 @@ MonoBehaviour:
   regenInCombatPerSec: 5
   regenOutCombatPerSec: 10
   selfDamagePercent: 0.01
+  _currentEnergy: 0
+  _serverAuthoritative: 0
 --- !u!1 &6774106985529295980
 GameObject:
   m_ObjectHideFlags: 0
