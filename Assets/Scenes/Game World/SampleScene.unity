@@ -3913,6 +3913,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d43764aad7f773f4ebe9b8a991c9e0a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  combatArrow: {fileID: 0}
   gridSize: 1
   moveDuration: 0.3
   continuousMoveDelay: 0

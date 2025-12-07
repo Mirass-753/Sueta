@@ -25,6 +25,10 @@ public partial class PlayerController : MonoBehaviour
     [ShowInInspector, ReadOnly, LabelText("Local Player Id")]
     private string LocalPlayerIdDebug => LocalPlayerId;
 
+    [Header("Combat / Arrow")]
+    [SerializeField] private ArrowController combatArrow;
+
+
     [TitleGroup("Network")]
     [ShowInInspector, ReadOnly, LabelText("My Id (instance)")]
     private string MyIdDebug => myId;
@@ -64,6 +68,7 @@ public partial class PlayerController : MonoBehaviour
 
     [TitleGroup("Movement/Grid")]
     [LabelText("Occupancy Manager")]
+    
     public GridOccupancyManager occupancyManager;
 
     // ====== КОЛЛИЗИЯ ======

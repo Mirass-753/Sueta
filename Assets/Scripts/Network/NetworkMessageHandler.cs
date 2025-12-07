@@ -80,7 +80,11 @@ public static class NetworkMessageHandler
         // свои же сообщения игнорируем
         if (move.id == PlayerController.LocalPlayerId)
             return;
-
+        
+        Vector2 pos = new Vector2(move.x, move.y);
+        Vector2 dir = new Vector2(move.dirX, move.dirY);
+        float aimAngle = move.aimAngle; // может быть 0
+        
         if (!players.TryGetValue(move.id, out var rp) || rp == null)
         {
             rp = RemotePlayer.Create(move.id);
@@ -91,9 +95,6 @@ public static class NetworkMessageHandler
             ApplyCachedEnergy(move.id, rp);
         }
 
-        Vector2 pos = new Vector2(move.x, move.y);
-        Vector2 dir = new Vector2(move.dirX, move.dirY);
-        float aimAngle = move.aimAngle; // может быть 0
         rp.SetNetworkState(pos, dir, move.moving, move.aimAngle);
     }
 
