@@ -20,6 +20,7 @@ public class NetMessageMove
     public float dirY;
     public bool moving;
     public float aimAngle;
+    public bool inCombat; // находится ли игрок в боевом режиме
 }
 
 /// Клиент → сервер: запрос нанести урон.

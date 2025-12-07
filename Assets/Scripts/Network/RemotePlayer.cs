@@ -76,7 +76,7 @@ public class RemotePlayer : MonoBehaviour
 
     // ---------- ПРИЁМ СОСТОЯНИЯ СЕТИ ----------
 
-    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving, float aimAngle = 0f)
+    public void SetNetworkState(Vector2 pos, Vector2 dir, bool moving, float aimAngle = 0f, bool inCombat = false)
     {
         targetPos = pos;
         lastDir = dir;
@@ -94,14 +94,18 @@ public class RemotePlayer : MonoBehaviour
             if (lastDir.x > 0.01f) spriteRenderer.flipX = true;
             else if (lastDir.x < -0.01f) spriteRenderer.flipX = false;
         }
-         if (arrow != null)
+        
+        if (arrow != null && arrow.gameObject != null)
         {
-        // удалённому игроку не нужен локальный ввод
-        arrow.allowPlayerInput = false;
-        // включаем её (в бою у тебя SetCombatActive прячет/показывает)
-        arrow.SetCombatActive(true);
-        // ставим угол, который пришёл по сети
-        arrow.SetAngle(aimAngle);
+            // удалённому игроку не нужен локальный ввод
+            arrow.allowPlayerInput = false;
+            // показываем стрелку только если удаленный игрок в боевом режиме
+            arrow.SetCombatActive(inCombat);
+            // ставим угол, который пришёл по сети
+            if (inCombat)
+            {
+                arrow.SetAngle(aimAngle);
+            }
         }
     }
 
@@ -109,6 +113,9 @@ public class RemotePlayer : MonoBehaviour
 
     private void Update()
     {
+        if (transform == null)
+            return;
+            
         transform.position = Vector2.Lerp(
             transform.position,
             targetPos,

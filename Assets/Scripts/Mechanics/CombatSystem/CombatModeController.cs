@@ -67,6 +67,7 @@ public class CombatModeController : MonoBehaviour
 
     public bool IsBlocking => _isBlocking;
     public bool IsInParryWindow => _isBlocking && (Time.time - _blockStartTime) <= parryWindowSeconds;
+    public bool IsCombatActive => _combatActive;
 
     private void Update()
     {

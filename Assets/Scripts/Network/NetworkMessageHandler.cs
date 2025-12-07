@@ -84,6 +84,7 @@ public static class NetworkMessageHandler
         Vector2 pos = new Vector2(move.x, move.y);
         Vector2 dir = new Vector2(move.dirX, move.dirY);
         float aimAngle = move.aimAngle; // может быть 0
+        bool inCombat = move.inCombat; // находится ли удаленный игрок в боевом режиме
         
         if (!players.TryGetValue(move.id, out var rp) || rp == null)
         {
@@ -95,7 +96,7 @@ public static class NetworkMessageHandler
             ApplyCachedEnergy(move.id, rp);
         }
 
-        rp.SetNetworkState(pos, dir, move.moving, move.aimAngle);
+        rp.SetNetworkState(pos, dir, move.moving, move.aimAngle, move.inCombat);
     }
 
     // ================== УРОН (HP) ==================

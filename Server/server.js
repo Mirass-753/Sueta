@@ -11,7 +11,7 @@ const wss = new WebSocket.Server({
 });
 
 // ---- ????????? ??????? ----
-// id -> { x, y, dirX, dirY, moving, t }
+// id -> { x, y, dirX, dirY, moving, aimAngle, inCombat, t }
 const playerStates = new Map();
 
 // ---- HP ????????? (?????? / ?????? ???????) ----
@@ -65,6 +65,8 @@ function sendSnapshot(ws) {
       dirX: st.dirX,
       dirY: st.dirY,
       moving: st.moving,
+      aimAngle: typeof st.aimAngle === 'number' ? st.aimAngle : 0,
+      inCombat: !!st.inCombat,
     };
 
     try {
@@ -138,6 +140,8 @@ function handleMove(ws, msg) {
     dirX: typeof msg.dirX === 'number' ? msg.dirX : 0,
     dirY: typeof msg.dirY === 'number' ? msg.dirY : 0,
     moving: !!msg.moving,
+    aimAngle: typeof msg.aimAngle === 'number' ? msg.aimAngle : 0,
+    inCombat: !!msg.inCombat,
     t: now,
   });
 
@@ -149,6 +153,8 @@ function handleMove(ws, msg) {
     dirX: typeof msg.dirX === 'number' ? msg.dirX : 0,
     dirY: typeof msg.dirY === 'number' ? msg.dirY : 0,
     moving: !!msg.moving,
+    aimAngle: typeof msg.aimAngle === 'number' ? msg.aimAngle : 0,
+    inCombat: !!msg.inCombat,
   };
 
   // ?????????? ????, ????? ??????????? (?? ??????? ???? ????????).
