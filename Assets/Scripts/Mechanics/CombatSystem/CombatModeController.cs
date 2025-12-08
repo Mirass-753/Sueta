@@ -21,6 +21,10 @@ public class CombatModeController : MonoBehaviour
     public float gridSize = 1f;
     public Vector2 cellCenterOffset = new Vector2(0.5f, 0.5f);
 
+    [Header("Input buffer")]
+[Tooltip("Максимальное время жизни запомненного шага после нажатия, сек.")]
+public float inputBufferSeconds = 0.25f;
+
     [Header("Input")]
     public KeyCode toggleCombatKey = KeyCode.R;
     public KeyCode attackKey = KeyCode.I;
@@ -416,7 +420,8 @@ public class CombatModeController : MonoBehaviour
         _isTeleporting = false;
         _moveRoutine = null;
 
-        bool queuedIsFresh = _hasQueuedMoveDir && (Time.time - _queuedMoveTimestamp) <= maxDelaySeconds;
+       bool queuedIsFresh = _hasQueuedMoveDir && (Time.time - _queuedMoveTimestamp) <= inputBufferSeconds;
+
 
         if (_combatActive && !_isBlocking && queuedIsFresh && _queuedMoveDir != Vector2.zero)
         {
