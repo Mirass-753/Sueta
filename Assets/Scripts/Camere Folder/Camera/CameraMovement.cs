@@ -15,6 +15,14 @@ public class CameraController : MonoBehaviour
     [Header("Camera Stabilization")]
     public float fixedOrthographicSize = 4f;
 
+    [Header("Zoom Settings")]
+    [Tooltip("Ограничивает минимальный зум камеры при прокрутке колёсика мыши")]
+    public float minOrthographicSize = 2f;
+    [Tooltip("Максимальное отдаление камеры. По умолчанию совпадает с текущим размером камеры при старте.")]
+    public float maxOrthographicSize = 0f;
+    [Tooltip("Скорость приближения/отдаления при прокрутке колёсика мыши")]
+    public float zoomSpeed = 2f;
+
     [Header("Chunk Lock")]
     public bool lockToChunksInCombat = true;
     public float lockSmooth = 0.08f;
@@ -48,6 +56,13 @@ public class CameraController : MonoBehaviour
 
         gameCamera.orthographicSize = baseSize * (targetAspect / currentAspect);
         fixedOrthographicSize = gameCamera.orthographicSize;
+
+        if (maxOrthographicSize <= 0f)
+            maxOrthographicSize = fixedOrthographicSize;
+
+        maxOrthographicSize = Mathf.Max(maxOrthographicSize, minOrthographicSize);
+
+        fixedOrthographicSize = Mathf.Clamp(fixedOrthographicSize, minOrthographicSize, maxOrthographicSize);
     }
 
     void LateUpdate()
@@ -69,6 +84,8 @@ public class CameraController : MonoBehaviour
 
     void Update()
     {
+        HandleScrollZoom();
+
         if (gameCamera != null && gameCamera.orthographicSize != fixedOrthographicSize)
             gameCamera.orthographicSize = fixedOrthographicSize;
 
@@ -130,5 +147,16 @@ public class CameraController : MonoBehaviour
         Gizmos.DrawLine(topRight, bottomRight);
         Gizmos.DrawLine(bottomRight, bottomLeft);
         Gizmos.DrawLine(bottomLeft, topLeft);
+    }
+
+    void HandleScrollZoom()
+    {
+        if (gameCamera == null) return;
+
+        float scrollDelta = Input.GetAxis("Mouse ScrollWheel");
+        if (Mathf.Approximately(scrollDelta, 0f)) return;
+
+        fixedOrthographicSize -= scrollDelta * zoomSpeed;
+        fixedOrthographicSize = Mathf.Clamp(fixedOrthographicSize, minOrthographicSize, maxOrthographicSize);
     }
 }
