@@ -6,15 +6,40 @@ public class ItemPickup : MonoBehaviour
 {
     public Item item;
 
+    [Tooltip("Уникальный ID, чтобы синхронизировать этот предмет по сети.")]
+    public string networkId;
+
     private SpriteRenderer _spriteRenderer;
     private CircleCollider2D _collider;
+    private Coroutine _enableRoutine;
+
+    private static readonly System.Collections.Generic.Dictionary<string, ItemPickup> ActivePickups
+        = new System.Collections.Generic.Dictionary<string, ItemPickup>();
 
     private void Awake()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
-        _collider = GetComponent<CircleCollider2D>();
-        _collider.isTrigger = true;
+        EnsureCollider();
         UpdateVisual();
+        EnsureNetworkId();
+    }
+
+    private void OnValidate()
+    {
+        _spriteRenderer = GetComponent<SpriteRenderer>();
+        EnsureCollider();
+        UpdateVisual();
+        EnsureNetworkId();
+    }
+
+    private void OnEnable()
+    {
+        Register();
+    }
+
+    private void OnDisable()
+    {
+        Unregister();
     }
 
     private void UpdateVisual()
@@ -27,39 +52,87 @@ public class ItemPickup : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        AttemptPickup(other);
+    }
+
+    private void OnTriggerStay2D(Collider2D other)
+    {
+        AttemptPickup(other);
+    }
+
+    private void EnsureCollider()
+    {
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
+
+        if (_collider == null)
+            _collider = gameObject.AddComponent<CircleCollider2D>();
+
+        _collider.isTrigger = true;
+    }
+
+    private void AttemptPickup(Collider2D other)
+    {
+        if (_collider != null && !_collider.enabled) return;
         if (!other.CompareTag("Player")) return;
 
         var inventory = other.GetComponent<PlayerInventory>();
         if (inventory == null) return;
 
-        Debug.Log($"ItemPickup: player entered, can pickup {item?.itemName}");
-        inventory.RegisterNearbyPickup(this);
+        inventory.TryPickup(this);
     }
 
-    private void OnTriggerExit2D(Collider2D other)
+    public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1, string newNetworkId = null)
     {
-        if (!other.CompareTag("Player")) return;
+        if (newItem != null)
+            item = newItem;
 
-        var inventory = other.GetComponent<PlayerInventory>();
-        if (inventory == null) return;
+        if (!string.IsNullOrEmpty(newNetworkId))
+            networkId = newNetworkId;
+        EnsureNetworkId();
 
-        Debug.Log("ItemPickup: player left trigger");
-        inventory.UnregisterNearbyPickup(this);
+        transform.position = position;
+        gameObject.SetActive(true);
+
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
+
+        _collider.enabled = false;
+        if (_enableRoutine != null)
+            StopCoroutine(_enableRoutine);
+        _enableRoutine = StartCoroutine(EnableColliderDelayed());
+
+        UpdateVisual();
     }
 
-    public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1)
+    private System.Collections.IEnumerator EnableColliderDelayed()
     {
-    if (newItem != null)
-        item = newItem;
+        yield return new WaitForSeconds(0.15f);
+        if (_collider != null)
+            _collider.enabled = true;
+    }
 
-    transform.position = position;
-    gameObject.SetActive(true);
+    private void EnsureNetworkId()
+    {
+        if (string.IsNullOrEmpty(networkId))
+            networkId = System.Guid.NewGuid().ToString();
+    }
 
-    if (_collider == null)
-        _collider = GetComponent<CircleCollider2D>();
+    private void Register()
+    {
+        EnsureNetworkId();
+        ActivePickups[networkId] = this;
+    }
 
-    _collider.enabled = true;
+    private void Unregister()
+    {
+        if (string.IsNullOrEmpty(networkId)) return;
+        if (ActivePickups.TryGetValue(networkId, out var existing) && existing == this)
+            ActivePickups.Remove(networkId);
+    }
 
-    UpdateVisual();
+    public static bool TryGetByNetworkId(string id, out ItemPickup pickup)
+    {
+        return ActivePickups.TryGetValue(id, out pickup);
     }
 }

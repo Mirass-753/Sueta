@@ -22,8 +22,6 @@ public class PlayerInventory : MonoBehaviour
 
     public event Action OnInventoryChanged;
 
-    private ItemPickup _nearbyPickup;
-
     private void Awake()
     {
         if (ownerTransform == null)
@@ -40,52 +38,36 @@ public class PlayerInventory : MonoBehaviour
         }
     }
 
-    private void Update()
+    public bool TryPickup(ItemPickup pickup)
     {
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            TryPickupNearby();
-        }
-    }
+        if (pickup == null || pickup.item == null)
+            return false;
 
-    private void TryPickupNearby()
-    {
-        if (_nearbyPickup == null || _nearbyPickup.item == null)
-            return;
-
-        if (ownerTransform != null)
+        var referenceTransform = ownerTransform != null ? ownerTransform : transform;
+        var playerCell = WorldToCell(referenceTransform.position);
+        var pickupCell = WorldToCell(pickup.transform.position);
+        if (playerCell != pickupCell)
         {
-            Vector2Int playerCell = WorldToCell(ownerTransform.position);
-            Vector2Int itemCell = WorldToCell(_nearbyPickup.transform.position);
-            if (playerCell != itemCell)
-                return; // предмет не в той же клетке
+            Debug.Log($"TryPickup blocked: player cell {playerCell} != pickup cell {pickupCell}");
+            return false;
         }
 
-        bool added = AddItem(_nearbyPickup.item);
+        bool added = AddItem(pickup.item);
 
-        Debug.Log($"TryPickupNearby: {_nearbyPickup.item.itemName}, added={added}");
+        Debug.Log($"TryPickup: {pickup.item.itemName}, added={added}");
 
         if (added)
         {
             var pool = FindFirstObjectByType<DroppedItemPool>();
             if (pool != null)
-                pool.Despawn(_nearbyPickup.gameObject);
+                pool.Despawn(pickup.gameObject);
             else
-                _nearbyPickup.gameObject.SetActive(false);
+                pickup.gameObject.SetActive(false);
 
-            _nearbyPickup = null;
+            NotifyPickupToNetwork(pickup);
         }
-    }
 
-    public void RegisterNearbyPickup(ItemPickup pickup)
-    {
-        _nearbyPickup = pickup;
-    }
-
-    public void UnregisterNearbyPickup(ItemPickup pickup)
-    {
-        if (_nearbyPickup == pickup)
-            _nearbyPickup = null;
+        return added;
     }
 
     public bool AddItem(Item item, int quantity = 1)
@@ -162,7 +144,9 @@ public class PlayerInventory : MonoBehaviour
         worldPosition.z = 0f;
 
         Debug.Log($"DropItem: dropping {slot.item.itemName} at {worldPosition}");
-        pool.Spawn(slot.item, worldPosition);
+        var spawned = pool.Spawn(slot.item, worldPosition);
+        if (spawned != null)
+            NotifyDropToNetwork(spawned);
 
         slot.Clear();
         OnInventoryChanged?.Invoke();
@@ -196,5 +180,39 @@ public class PlayerInventory : MonoBehaviour
         float fx = worldPos.x / gridSize - cellCenterOffset.x;
         float fy = worldPos.y / gridSize - cellCenterOffset.y;
         return new Vector2Int(Mathf.RoundToInt(fx), Mathf.RoundToInt(fy));
+    }
+
+    private void NotifyDropToNetwork(ItemPickup pickup)
+    {
+        var ws = WebSocketClient.Instance;
+        if (ws == null || pickup == null || pickup.item == null)
+            return;
+
+        var msg = new NetMessageItemDrop
+        {
+            pickupId = pickup.networkId,
+            itemName = pickup.item.itemName,
+            x = pickup.transform.position.x,
+            y = pickup.transform.position.y
+        };
+
+        ws.Send(JsonUtility.ToJson(msg));
+    }
+
+    private void NotifyPickupToNetwork(ItemPickup pickup)
+    {
+        var ws = WebSocketClient.Instance;
+        if (ws == null || pickup == null || pickup.item == null)
+            return;
+
+        var msg = new NetMessageItemPickup
+        {
+            pickupId = pickup.networkId,
+            itemName = pickup.item.itemName,
+            x = pickup.transform.position.x,
+            y = pickup.transform.position.y
+        };
+
+        ws.Send(JsonUtility.ToJson(msg));
     }
 }
