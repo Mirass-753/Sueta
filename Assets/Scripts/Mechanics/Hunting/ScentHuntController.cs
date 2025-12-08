@@ -30,9 +30,16 @@ public class ScentHuntController : MonoBehaviour
     Coroutine _sniffRoutine;
     string _currentPreyId;
 
+    void Awake()
+    {
+        NetworkMessageHandler.TryConsumePendingPreySpawns(this);
+    }
+
     void Update()
     {
         EnsurePlayer();
+
+        NetworkMessageHandler.TryConsumePendingPreySpawns(this);
 
         if (!_sniffing && _prey == null && Input.GetKeyDown(sniffKey))
             _sniffRoutine = StartCoroutine(SniffRoutine());
