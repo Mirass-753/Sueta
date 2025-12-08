@@ -43,6 +43,15 @@ public class PlayerInventory : MonoBehaviour
         if (pickup == null || pickup.item == null)
             return false;
 
+        var referenceTransform = ownerTransform != null ? ownerTransform : transform;
+        var playerCell = WorldToCell(referenceTransform.position);
+        var pickupCell = WorldToCell(pickup.transform.position);
+        if (playerCell != pickupCell)
+        {
+            Debug.Log($"TryPickup blocked: player cell {playerCell} != pickup cell {pickupCell}");
+            return false;
+        }
+
         bool added = AddItem(pickup.item);
 
         Debug.Log($"TryPickup: {pickup.item.itemName}, added={added}");

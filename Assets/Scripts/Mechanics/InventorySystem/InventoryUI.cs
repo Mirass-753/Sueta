@@ -30,6 +30,8 @@ public class InventoryUI : MonoBehaviour
         if (inventoryPanel != null)
             inventoryPanel.SetActive(false);
 
+        HideHoverPanel();
+
         if (dragIcon != null)
             dragIcon.enabled = false;
     }
@@ -45,11 +47,7 @@ public class InventoryUI : MonoBehaviour
             TryBindInventory();
 
         if (Input.GetKeyDown(toggleKey))
-        {
-            _isOpen = !_isOpen;
-            if (inventoryPanel != null)
-                inventoryPanel.SetActive(_isOpen);
-        }
+            SetOpen(!_isOpen);
 
         if (_isOpen)
             UpdatePanelPosition();
@@ -90,6 +88,19 @@ public class InventoryUI : MonoBehaviour
     {
         if (playerInventory != null)
             playerInventory.OnInventoryChanged -= RefreshAll;
+    }
+
+    void SetOpen(bool isOpen)
+    {
+        _isOpen = isOpen;
+        if (inventoryPanel != null)
+            inventoryPanel.SetActive(_isOpen);
+
+        if (!_isOpen)
+        {
+            CancelDrag();
+            HideHoverPanel();
+        }
     }
 
     // ---------- UI ----------
@@ -192,5 +203,11 @@ public class InventoryUI : MonoBehaviour
     {
         var slot = playerInventory?.GetSlot(index);
         return slot != null ? slot.item : null;
+    }
+
+    private void HideHoverPanel()
+    {
+        if (hoverPanel != null)
+            hoverPanel.SetActive(false);
     }
 }
