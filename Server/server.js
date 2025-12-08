@@ -315,6 +315,38 @@ function handleDisconnect(ws) {
   broadcast(msg);
 }
 
+// ================== ПРЕДМЕТЫ ==================
+function handleItemDrop(ws, msg) {
+  if (!msg || typeof msg.pickupId !== 'string' || typeof msg.itemName !== 'string') return;
+
+  const evt = {
+    type: 'item_drop',
+    pickupId: msg.pickupId,
+    itemName: msg.itemName,
+    x: typeof msg.x === 'number' ? msg.x : 0,
+    y: typeof msg.y === 'number' ? msg.y : 0,
+  };
+
+  broadcast(evt, ws);
+}
+
+function handleItemPickup(ws, msg) {
+  if (!msg || typeof msg.pickupId !== 'string') return;
+
+  const evt = {
+    type: 'item_pickup',
+    pickupId: msg.pickupId,
+  };
+
+  // Координаты и itemName могут пригодиться для будущей логики,
+  // поэтому оставляем их, если клиент прислал.
+  if (typeof msg.itemName === 'string') evt.itemName = msg.itemName;
+  if (typeof msg.x === 'number') evt.x = msg.x;
+  if (typeof msg.y === 'number') evt.y = msg.y;
+
+  broadcast(evt, ws);
+}
+
 // ================== ????????? ????? ??????? ==================
 //
 // ???????, ? ???? energy < max ? ??? ????? ????? ?????????,
@@ -379,6 +411,12 @@ wss.on('connection', (ws) => {
         break;
       case 'energy_request':
         handleEnergyRequest(ws, msg);
+        break;
+      case 'item_drop':
+        handleItemDrop(ws, msg);
+        break;
+      case 'item_pickup':
+        handleItemPickup(ws, msg);
         break;
       default:
         break;
