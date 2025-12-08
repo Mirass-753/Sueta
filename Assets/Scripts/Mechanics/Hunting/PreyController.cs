@@ -1,11 +1,14 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PreyController : MonoBehaviour
 {
     [Header("Owner")]
     public Transform owner;                  // за кем охотится белка (владелец нюха)
+    public string networkId;
+    public bool isOwnerInstance = true;
 
     [Header("Move")]
     [Tooltip("Скорость в клетках в секунду")]
@@ -25,14 +28,29 @@ public class PreyController : MonoBehaviour
 
     public event Action<PreyController> OnKilled;
 
+    private static readonly Dictionary<string, PreyController> registry = new Dictionary<string, PreyController>();
+
     bool _alerted;
     bool _fleeing;
     bool _moving;
     bool _dead;
+    bool _sentKill;
+    float _netSyncTimer;
+
+    readonly List<Transform> _hunters = new List<Transform>();
 
     public bool IsDead => _dead;
 
-    public void Init(Transform ownerTransform, float grid, Vector2 offset, LayerMask blocks, GameObject pickup, Item item)
+    public static bool TryGetByNetworkId(string id, out PreyController prey)
+    {
+        if (!string.IsNullOrEmpty(id) && registry.TryGetValue(id, out prey) && prey != null)
+            return true;
+
+        prey = null;
+        return false;
+    }
+
+    public void Init(Transform ownerTransform, float grid, Vector2 offset, LayerMask blocks, GameObject pickup, Item item, string newNetworkId = null, bool ownerInstance = true)
     {
         owner = ownerTransform;
         gridSize = grid;
@@ -40,20 +58,44 @@ public class PreyController : MonoBehaviour
         blockMask = blocks;
         pickupPrefab = pickup;
         dropItem = item;
+
+        isOwnerInstance = ownerInstance;
+
+        if (!string.IsNullOrEmpty(newNetworkId))
+            networkId = newNetworkId;
+        else if (string.IsNullOrEmpty(networkId))
+            networkId = Guid.NewGuid().ToString();
+
+        Register();
+        RebuildHuntersList();
     }
 
     void Update()
     {
-        if (_dead || owner == null) return;
+        if (_dead)
+            return;
 
-        // смерть, если владелец встал на ту же клетку
-        if (WorldToCell(transform.position) == WorldToCell(owner.position))
+        _netSyncTimer += Time.deltaTime;
+        if (isOwnerInstance && _netSyncTimer >= 0.2f)
+        {
+            _netSyncTimer = 0f;
+            SendNetworkPosition();
+        }
+
+        RebuildHuntersList();
+
+        Transform closestHunter = GetClosestHunter();
+        if (closestHunter == null)
+            return;
+
+        // смерть, если охотник встал на ту же клетку
+        if (WorldToCell(transform.position) == WorldToCell(closestHunter.position))
         {
             Kill();
             return;
         }
 
-        float distCells = Vector2.Distance(WorldToCell(transform.position), WorldToCell(owner.position));
+        float distCells = Vector2.Distance(WorldToCell(transform.position), WorldToCell(closestHunter.position));
         if (!_alerted && distCells <= detectRadiusCells)
         {
             _alerted = true;
@@ -79,7 +121,8 @@ public class PreyController : MonoBehaviour
         _moving = true;
 
         Vector2Int myCell = WorldToCell(transform.position);
-        Vector2Int ownerCell = WorldToCell(owner.position);
+        Transform closestHunter = GetClosestHunter();
+        Vector2Int ownerCell = closestHunter != null ? WorldToCell(closestHunter.position) : WorldToCell(transform.position);
 
         Vector2Int bestDir = Vector2Int.zero;
         float bestDist = -Mathf.Infinity;
@@ -126,12 +169,18 @@ public class PreyController : MonoBehaviour
 
     public void HitByPlayer() => Kill();
 
-    public void Kill()
+    public void Kill(bool fromNetwork = false)
     {
         if (_dead) return;
         _dead = true;
         _fleeing = false;
         _moving = false;
+
+        if (!_sentKill && !fromNetwork)
+        {
+            _sentKill = true;
+            SendKillMessage();
+        }
 
         if (pickupPrefab != null && dropItem != null)
         {
@@ -142,14 +191,111 @@ public class PreyController : MonoBehaviour
         }
 
         OnKilled?.Invoke(this);
+        Unregister();
         Destroy(gameObject);
     }
 
     void OnTriggerEnter2D(Collider2D other)
     {
         if (_dead) return;
-        if (owner != null && other.transform == owner)
+        if (other.GetComponent<PlayerController>() != null || other.GetComponent<RemotePlayer>() != null)
+        {
             Kill();
+        }
+    }
+
+    public void SetNetworkPosition(Vector3 pos)
+    {
+        if (isOwnerInstance || _dead)
+            return;
+
+        transform.position = pos;
+    }
+
+    void RebuildHuntersList()
+    {
+        _hunters.Clear();
+        if (owner != null)
+            _hunters.Add(owner);
+
+        var locals = FindObjectsOfType<PlayerController>();
+        foreach (var p in locals)
+        {
+            if (p != null && !_hunters.Contains(p.transform))
+                _hunters.Add(p.transform);
+        }
+
+        var remotes = FindObjectsOfType<RemotePlayer>();
+        foreach (var rp in remotes)
+        {
+            if (rp != null && !_hunters.Contains(rp.transform))
+                _hunters.Add(rp.transform);
+        }
+    }
+
+    Transform GetClosestHunter()
+    {
+        Transform result = null;
+        float bestDist = float.MaxValue;
+        Vector2Int myCell = WorldToCell(transform.position);
+
+        foreach (var h in _hunters)
+        {
+            if (h == null) continue;
+            float dist = Vector2Int.Distance(myCell, WorldToCell(h.position));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                result = h;
+            }
+        }
+
+        return result;
+    }
+
+    void SendNetworkPosition()
+    {
+        if (WebSocketClient.Instance == null || string.IsNullOrEmpty(networkId))
+            return;
+
+        var msg = new NetMessagePreyPosition
+        {
+            type = "prey_pos",
+            id = networkId,
+            x = transform.position.x,
+            y = transform.position.y
+        };
+
+        WebSocketClient.Instance.Send(JsonUtility.ToJson(msg));
+    }
+
+    void SendKillMessage()
+    {
+        if (WebSocketClient.Instance == null || string.IsNullOrEmpty(networkId))
+            return;
+
+        var msg = new NetMessagePreyKill
+        {
+            type = "prey_kill",
+            id = networkId,
+            killerId = PlayerController.LocalPlayerId
+        };
+
+        WebSocketClient.Instance.Send(JsonUtility.ToJson(msg));
+    }
+
+    void Register()
+    {
+        if (string.IsNullOrEmpty(networkId))
+            return;
+
+        registry[networkId] = this;
+    }
+
+    void Unregister()
+    {
+        if (!string.IsNullOrEmpty(networkId))
+            registry.Remove(networkId);
     }
 
     Vector2Int WorldToCell(Vector2 worldPos)
