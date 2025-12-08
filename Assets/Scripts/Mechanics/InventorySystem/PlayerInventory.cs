@@ -43,14 +43,6 @@ public class PlayerInventory : MonoBehaviour
         if (pickup == null || pickup.item == null)
             return false;
 
-        if (ownerTransform != null)
-        {
-            Vector2Int playerCell = WorldToCell(ownerTransform.position);
-            Vector2Int itemCell = WorldToCell(pickup.transform.position);
-            if (playerCell != itemCell)
-                return false; // предмет не в той же клетке
-        }
-
         bool added = AddItem(pickup.item);
 
         Debug.Log($"TryPickup: {pickup.item.itemName}, added={added}");

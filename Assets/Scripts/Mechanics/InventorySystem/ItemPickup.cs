@@ -12,8 +12,14 @@ public class ItemPickup : MonoBehaviour
     private void Awake()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
-        _collider = GetComponent<CircleCollider2D>();
-        _collider.isTrigger = true;
+        EnsureCollider();
+        UpdateVisual();
+    }
+
+    private void OnValidate()
+    {
+        _spriteRenderer = GetComponent<SpriteRenderer>();
+        EnsureCollider();
         UpdateVisual();
     }
 
@@ -34,6 +40,17 @@ public class ItemPickup : MonoBehaviour
 
         Debug.Log($"ItemPickup: player entered, picking up {item?.itemName}");
         inventory.TryPickup(this);
+    }
+
+    private void EnsureCollider()
+    {
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
+
+        if (_collider == null)
+            _collider = gameObject.AddComponent<CircleCollider2D>();
+
+        _collider.isTrigger = true;
     }
 
     public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1)
