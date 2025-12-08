@@ -52,14 +52,12 @@ public class ItemPickup : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (_collider != null && !_collider.enabled) return;
-        if (!other.CompareTag("Player")) return;
+        AttemptPickup(other);
+    }
 
-        var inventory = other.GetComponent<PlayerInventory>();
-        if (inventory == null) return;
-
-        Debug.Log($"ItemPickup: player entered, picking up {item?.itemName}");
-        inventory.TryPickup(this);
+    private void OnTriggerStay2D(Collider2D other)
+    {
+        AttemptPickup(other);
     }
 
     private void EnsureCollider()
@@ -71,6 +69,17 @@ public class ItemPickup : MonoBehaviour
             _collider = gameObject.AddComponent<CircleCollider2D>();
 
         _collider.isTrigger = true;
+    }
+
+    private void AttemptPickup(Collider2D other)
+    {
+        if (_collider != null && !_collider.enabled) return;
+        if (!other.CompareTag("Player")) return;
+
+        if (_collider == null)
+            _collider = gameObject.AddComponent<CircleCollider2D>();
+
+        inventory.TryPickup(this);
     }
 
     public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1, string newNetworkId = null)
