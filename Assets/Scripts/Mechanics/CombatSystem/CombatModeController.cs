@@ -60,6 +60,7 @@ public class CombatModeController : MonoBehaviour
     // буфер направления для следующего шага
     private Vector2 _queuedMoveDir;
     private bool _hasQueuedMoveDir;
+    private float _queuedMoveTimestamp;
 
     // для управления автоатакой при удержании
     private bool _attackKeyHeld;
@@ -186,6 +187,7 @@ public class CombatModeController : MonoBehaviour
     {
         if (_isBlocking) return;
         if (arrowController != null && arrowController.IsRotating) return;
+        if (energySystem != null && energySystem.CurrentEnergy <= 0f) return;
 
         bool keyHeld = Input.GetKey(attackKey);
 
@@ -253,6 +255,7 @@ public class CombatModeController : MonoBehaviour
             {
                 _queuedMoveDir = downDir;
                 _hasQueuedMoveDir = true;
+                _queuedMoveTimestamp = Time.time;
             }
             return;
         }
@@ -264,6 +267,7 @@ public class CombatModeController : MonoBehaviour
         {
             _hasQueuedMoveDir = false;
             _queuedMoveDir = Vector2.zero;
+            _queuedMoveTimestamp = 0f;
             return;
         }
 
@@ -359,6 +363,7 @@ public class CombatModeController : MonoBehaviour
     {
         _isTeleporting = true;
         _hasQueuedMoveDir = false;
+        _queuedMoveTimestamp = 0f;
 
         Vector2Int step = new Vector2Int(
             dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0),
@@ -411,11 +416,14 @@ public class CombatModeController : MonoBehaviour
         _isTeleporting = false;
         _moveRoutine = null;
 
-        if (_combatActive && !_isBlocking && _hasQueuedMoveDir && _queuedMoveDir != Vector2.zero)
+        bool queuedIsFresh = _hasQueuedMoveDir && (Time.time - _queuedMoveTimestamp) <= maxDelaySeconds;
+
+        if (_combatActive && !_isBlocking && queuedIsFresh && _queuedMoveDir != Vector2.zero)
         {
             Vector2 nextDir = _queuedMoveDir;
             _queuedMoveDir = Vector2.zero;
             _hasQueuedMoveDir = false;
+            _queuedMoveTimestamp = 0f;
 
             _moveRoutine = StartCoroutine(TeleportStep(nextDir));
         }
