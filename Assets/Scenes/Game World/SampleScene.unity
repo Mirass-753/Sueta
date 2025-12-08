@@ -552,6 +552,9 @@ MonoBehaviour:
   smoothSpeed: 0.2
   offset: {x: 0, y: 0, z: -10}
   fixedOrthographicSize: 3.5
+  minOrthographicSize: 2
+  maxOrthographicSize: 0
+  zoomSpeed: 2
   lockToChunksInCombat: 1
   lockSmooth: 0.08
   clampToWorldBounds: 0
@@ -735,15 +738,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 918520997185139240, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Name
-      value: ItemPickup (1)
+      value: Pickup_Stone
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.z
@@ -779,7 +782,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2798065564069648022, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Radius
-      value: 1
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Size.x
@@ -792,7 +795,7 @@ PrefabInstance:
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: -7517440477174198791, guid: 418f6d2b3003f9440bf061296e3e36dd, type: 3}
+      objectReference: {fileID: -7517440477174198791, guid: 08c6e4cbeaf88524b8850afe0710bc3d, type: 3}
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_SortingOrder
       value: 1
@@ -1015,16 +1018,28 @@ MonoBehaviour:
   cellCenterOffset: {x: 0.5, y: 0.5}
   moveDuration: 0.2
   sense: {fileID: 679759956}
-  attack: {fileID: 679759965}
-  arrow: {fileID: 1416054413}
   aggroRange: 4
   loseRange: 6
+  memoryDuration: 3
+  attack: {fileID: 679759965}
+  arrow: {fileID: 1416054413}
+  attackRange: 1.5
+  attackCooldownAfterMove: 0.3
+  retreatHealthThreshold: 0.3
+  retreatDistance: 3
+  retreatChance: 0.7
+  predictionTime: 0.5
+  obstacleAvoidanceRange: 1.5
+  obstacleLayer:
+    serializedVersion: 2
+    m_Bits: 0
   patrolCells:
   - {x: 0, y: 0}
   - {x: 3, y: 0}
   - {x: 3, y: 2}
   - {x: 0, y: 2}
   loopPatrol: 1
+  patrolWaitTime: 1
   occupancyManager: {fileID: 1527746147}
 --- !u!212 &679759958
 SpriteRenderer:
@@ -1356,15 +1371,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 918520997185139240, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Name
-      value: ItemPickup
+      value: Pickup_Stone
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.74
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.75
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1400,7 +1415,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2798065564069648022, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Radius
-      value: 1
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Size.x
@@ -1413,7 +1428,7 @@ PrefabInstance:
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: -7517440477174198791, guid: 418f6d2b3003f9440bf061296e3e36dd, type: 3}
+      objectReference: {fileID: -7517440477174198791, guid: 08c6e4cbeaf88524b8850afe0710bc3d, type: 3}
     - target: {fileID: 7861856480833365801, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_SortingOrder
       value: 1
@@ -1792,7 +1807,7 @@ MonoBehaviour:
   m_BlockingObjects: 0
   m_BlockingMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 8319
 --- !u!114 &1260553374
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2353,7 +2368,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 918520997185139240, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_Name
-      value: UniveraslItem
+      value: Pickup_New Item
       objectReference: {fileID: 0}
     - target: {fileID: 1918665565598073536, guid: 1190f210f3e997648ac48157f39c0da7, type: 3}
       propertyPath: m_LocalPosition.x
