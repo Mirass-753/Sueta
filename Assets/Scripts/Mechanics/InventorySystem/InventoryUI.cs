@@ -26,9 +26,6 @@ public class InventoryUI : MonoBehaviour
         _mainCamera = Camera.main;
         TryBindInventory();
 
-        CreateSlots();
-        RefreshAll();
-
         _isOpen = false;
         if (inventoryPanel != null)
             inventoryPanel.SetActive(false);
@@ -61,7 +58,11 @@ public class InventoryUI : MonoBehaviour
     // ---------- Привязка инвентаря ----------
     void TryBindInventory()
     {
-        if (playerInventory != null) return;
+        if (playerInventory != null)
+        {
+            SetPlayerInventory(playerInventory);
+            return;
+        }
 
 #if UNITY_2023_1_OR_NEWER
         var inv = Object.FindFirstObjectByType<PlayerInventory>();
@@ -74,8 +75,6 @@ public class InventoryUI : MonoBehaviour
 
     public void SetPlayerInventory(PlayerInventory inv)
     {
-        if (playerInventory == inv) return;
-
         UnsubscribeInventory();
         playerInventory = inv;
 
