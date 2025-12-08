@@ -32,34 +32,23 @@ public class ItemPickup : MonoBehaviour
         var inventory = other.GetComponent<PlayerInventory>();
         if (inventory == null) return;
 
-        Debug.Log($"ItemPickup: player entered, can pickup {item?.itemName}");
-        inventory.RegisterNearbyPickup(this);
-    }
-
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        if (!other.CompareTag("Player")) return;
-
-        var inventory = other.GetComponent<PlayerInventory>();
-        if (inventory == null) return;
-
-        Debug.Log("ItemPickup: player left trigger");
-        inventory.UnregisterNearbyPickup(this);
+        Debug.Log($"ItemPickup: player entered, picking up {item?.itemName}");
+        inventory.TryPickup(this);
     }
 
     public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1)
     {
-    if (newItem != null)
-        item = newItem;
+        if (newItem != null)
+            item = newItem;
 
-    transform.position = position;
-    gameObject.SetActive(true);
+        transform.position = position;
+        gameObject.SetActive(true);
 
-    if (_collider == null)
-        _collider = GetComponent<CircleCollider2D>();
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
 
-    _collider.enabled = true;
+        _collider.enabled = true;
 
-    UpdateVisual();
+        UpdateVisual();
     }
 }
