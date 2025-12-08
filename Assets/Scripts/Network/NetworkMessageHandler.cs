@@ -53,6 +53,8 @@ public static class NetworkMessageHandler
             case "energy_update": HandleEnergyUpdate(json); break;
             case "energy_sync":   HandleEnergySync(json);   break;
             case "disconnect":    HandleDisconnect(json);   break;
+            case "item_drop":     HandleItemDrop(json);     break;
+            case "item_pickup":   HandleItemPickup(json);   break;
             default:
                 // неизвестные типы просто игнорируем
                 break;
@@ -264,6 +266,72 @@ public static class NetworkMessageHandler
 
                 dmg.energy.SetCurrentEnergyFromServer(e.energy);
             }
+        }
+    }
+
+    // ================== ПРЕДМЕТЫ ==================
+
+    private static void HandleItemDrop(string json)
+    {
+        NetMessageItemDrop msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageItemDrop>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить item_drop: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.pickupId) || string.IsNullOrEmpty(msg.itemName))
+            return;
+
+        if (ItemPickup.TryGetByNetworkId(msg.pickupId, out var existing) && existing != null)
+        {
+            existing.ReactivatePickup(new Vector3(msg.x, msg.y, 0f), existing.item, 1, msg.pickupId);
+            return;
+        }
+
+        var item = ItemRegistry.FindItemByName(msg.itemName);
+        if (item == null)
+            return;
+
+        var pool = Object.FindFirstObjectByType<DroppedItemPool>();
+        if (pool == null)
+        {
+            Debug.LogWarning("[NET] DroppedItemPool not found to spawn network drop");
+            return;
+        }
+
+        var pickup = pool.Spawn(item, new Vector3(msg.x, msg.y, 0f));
+        if (pickup != null)
+            pickup.networkId = msg.pickupId;
+    }
+
+    private static void HandleItemPickup(string json)
+    {
+        NetMessageItemPickup msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageItemPickup>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить item_pickup: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.pickupId))
+            return;
+
+        if (ItemPickup.TryGetByNetworkId(msg.pickupId, out var pickup) && pickup != null)
+        {
+            var pool = Object.FindFirstObjectByType<DroppedItemPool>();
+            if (pool != null)
+                pool.Despawn(pickup.gameObject);
+            else
+                pickup.gameObject.SetActive(false);
         }
     }
 

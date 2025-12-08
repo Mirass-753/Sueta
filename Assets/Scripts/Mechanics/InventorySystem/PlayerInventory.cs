@@ -54,6 +54,8 @@ public class PlayerInventory : MonoBehaviour
                 pool.Despawn(pickup.gameObject);
             else
                 pickup.gameObject.SetActive(false);
+
+            NotifyPickupToNetwork(pickup);
         }
 
         return added;
@@ -133,7 +135,9 @@ public class PlayerInventory : MonoBehaviour
         worldPosition.z = 0f;
 
         Debug.Log($"DropItem: dropping {slot.item.itemName} at {worldPosition}");
-        pool.Spawn(slot.item, worldPosition);
+        var spawned = pool.Spawn(slot.item, worldPosition);
+        if (spawned != null)
+            NotifyDropToNetwork(spawned);
 
         slot.Clear();
         OnInventoryChanged?.Invoke();
@@ -167,5 +171,39 @@ public class PlayerInventory : MonoBehaviour
         float fx = worldPos.x / gridSize - cellCenterOffset.x;
         float fy = worldPos.y / gridSize - cellCenterOffset.y;
         return new Vector2Int(Mathf.RoundToInt(fx), Mathf.RoundToInt(fy));
+    }
+
+    private void NotifyDropToNetwork(ItemPickup pickup)
+    {
+        var ws = WebSocketClient.Instance;
+        if (ws == null || pickup == null || pickup.item == null)
+            return;
+
+        var msg = new NetMessageItemDrop
+        {
+            pickupId = pickup.networkId,
+            itemName = pickup.item.itemName,
+            x = pickup.transform.position.x,
+            y = pickup.transform.position.y
+        };
+
+        ws.Send(JsonUtility.ToJson(msg));
+    }
+
+    private void NotifyPickupToNetwork(ItemPickup pickup)
+    {
+        var ws = WebSocketClient.Instance;
+        if (ws == null || pickup == null || pickup.item == null)
+            return;
+
+        var msg = new NetMessageItemPickup
+        {
+            pickupId = pickup.networkId,
+            itemName = pickup.item.itemName,
+            x = pickup.transform.position.x,
+            y = pickup.transform.position.y
+        };
+
+        ws.Send(JsonUtility.ToJson(msg));
     }
 }

@@ -6,14 +6,22 @@ public class ItemPickup : MonoBehaviour
 {
     public Item item;
 
+    [Tooltip("Уникальный ID, чтобы синхронизировать этот предмет по сети.")]
+    public string networkId;
+
     private SpriteRenderer _spriteRenderer;
     private CircleCollider2D _collider;
+    private Coroutine _enableRoutine;
+
+    private static readonly System.Collections.Generic.Dictionary<string, ItemPickup> ActivePickups
+        = new System.Collections.Generic.Dictionary<string, ItemPickup>();
 
     private void Awake()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
         EnsureCollider();
         UpdateVisual();
+        EnsureNetworkId();
     }
 
     private void OnValidate()
@@ -21,6 +29,17 @@ public class ItemPickup : MonoBehaviour
         _spriteRenderer = GetComponent<SpriteRenderer>();
         EnsureCollider();
         UpdateVisual();
+        EnsureNetworkId();
+    }
+
+    private void OnEnable()
+    {
+        Register();
+    }
+
+    private void OnDisable()
+    {
+        Unregister();
     }
 
     private void UpdateVisual()
@@ -33,6 +52,7 @@ public class ItemPickup : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (_collider != null && !_collider.enabled) return;
         if (!other.CompareTag("Player")) return;
 
         var inventory = other.GetComponent<PlayerInventory>();
@@ -53,10 +73,14 @@ public class ItemPickup : MonoBehaviour
         _collider.isTrigger = true;
     }
 
-    public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1)
+    public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1, string newNetworkId = null)
     {
         if (newItem != null)
             item = newItem;
+
+        if (!string.IsNullOrEmpty(newNetworkId))
+            networkId = newNetworkId;
+        EnsureNetworkId();
 
         transform.position = position;
         gameObject.SetActive(true);
@@ -64,8 +88,42 @@ public class ItemPickup : MonoBehaviour
         if (_collider == null)
             _collider = GetComponent<CircleCollider2D>();
 
-        _collider.enabled = true;
+        _collider.enabled = false;
+        if (_enableRoutine != null)
+            StopCoroutine(_enableRoutine);
+        _enableRoutine = StartCoroutine(EnableColliderDelayed());
 
         UpdateVisual();
+    }
+
+    private System.Collections.IEnumerator EnableColliderDelayed()
+    {
+        yield return new WaitForSeconds(0.15f);
+        if (_collider != null)
+            _collider.enabled = true;
+    }
+
+    private void EnsureNetworkId()
+    {
+        if (string.IsNullOrEmpty(networkId))
+            networkId = System.Guid.NewGuid().ToString();
+    }
+
+    private void Register()
+    {
+        EnsureNetworkId();
+        ActivePickups[networkId] = this;
+    }
+
+    private void Unregister()
+    {
+        if (string.IsNullOrEmpty(networkId)) return;
+        if (ActivePickups.TryGetValue(networkId, out var existing) && existing == this)
+            ActivePickups.Remove(networkId);
+    }
+
+    public static bool TryGetByNetworkId(string id, out ItemPickup pickup)
+    {
+        return ActivePickups.TryGetValue(id, out pickup);
     }
 }
