@@ -76,8 +76,8 @@ public class ItemPickup : MonoBehaviour
         if (_collider != null && !_collider.enabled) return;
         if (!other.CompareTag("Player")) return;
 
-        var inventory = other.GetComponent<PlayerInventory>();
-        if (inventory == null) return;
+        if (_collider == null)
+            _collider = gameObject.AddComponent<CircleCollider2D>();
 
         inventory.TryPickup(this);
     }
