@@ -25,7 +25,20 @@ public class ArrowController : MonoBehaviour
     {
         _inputEnabled = active;
         if (hideWhenNotCombat)
+        {
+            // Если hideWhenNotCombat=true, показываем/скрываем стрелку в зависимости от боевого режима
             gameObject.SetActive(active);
+        }
+        else
+        {
+            // Если hideWhenNotCombat=false, стрелка всегда должна быть видна
+            // Но если active=true, убеждаемся, что она активирована (на случай, если была деактивирована ранее)
+            if (active && !gameObject.activeSelf)
+            {
+                gameObject.SetActive(true);
+            }
+            // Если active=false и hideWhenNotCombat=false, не скрываем стрелку (она остается видимой)
+        }
     }
 
     /// Жёстко ставит угол.

@@ -3785,7 +3785,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1125598775935320095, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2801394439536689568, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: bodyCollider

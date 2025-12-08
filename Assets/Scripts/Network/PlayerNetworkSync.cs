@@ -11,26 +11,35 @@ public class PlayerNetworkSync : MonoBehaviour
 
     private void Start()
     {
-        if (transform == null)
+        if (this == null || transform == null)
             return;
             
-        _lastPosition = transform.position;
-        
-        // Находим CombatModeController или ArrowController для получения угла стрелки
-        _combatController = GetComponent<CombatModeController>();
-        if (_combatController == null)
-            _combatController = GetComponentInChildren<CombatModeController>();
-        
-        if (_combatController != null && _combatController.arrowController != null)
+        try
         {
-            _arrowController = _combatController.arrowController;
+            _lastPosition = transform.position;
+            
+            // Находим CombatModeController или ArrowController для получения угла стрелки
+            _combatController = GetComponent<CombatModeController>();
+            if (_combatController == null)
+                _combatController = GetComponentInChildren<CombatModeController>();
+            
+            if (_combatController != null && _combatController.arrowController != null)
+            {
+                _arrowController = _combatController.arrowController;
+            }
+            else
+            {
+                // Если не нашли через CombatModeController, ищем напрямую
+                _arrowController = GetComponent<ArrowController>();
+                if (_arrowController == null)
+                    _arrowController = GetComponentInChildren<ArrowController>();
+            }
         }
-        else
+        catch (System.Exception)
         {
-            // Если не нашли через CombatModeController, ищем напрямую
-            _arrowController = GetComponent<ArrowController>();
-            if (_arrowController == null)
-                _arrowController = GetComponentInChildren<ArrowController>();
+            // Игнорируем ошибки инициализации в редакторе
+            _combatController = null;
+            _arrowController = null;
         }
     }
 
@@ -68,6 +77,25 @@ public class PlayerNetworkSync : MonoBehaviour
         
         try
         {
+            // Если компоненты не найдены, попробуем найти их снова (на случай, если они добавились позже)
+            if (_combatController == null && _arrowController == null)
+            {
+                _combatController = GetComponent<CombatModeController>();
+                if (_combatController == null)
+                    _combatController = GetComponentInChildren<CombatModeController>();
+                
+                if (_combatController != null && _combatController.arrowController != null)
+                {
+                    _arrowController = _combatController.arrowController;
+                }
+                else
+                {
+                    _arrowController = GetComponent<ArrowController>();
+                    if (_arrowController == null)
+                        _arrowController = GetComponentInChildren<ArrowController>();
+                }
+            }
+
             if (_combatController != null)
             {
                 inCombat = _combatController.IsCombatActive;
@@ -105,5 +133,11 @@ public class PlayerNetworkSync : MonoBehaviour
 
         string json = JsonUtility.ToJson(msg);
         WebSocketClient.Instance.Send(json);
+        
+        // Отладочное логирование (можно убрать после проверки)
+        if (Application.isPlaying && inCombat)
+        {
+            Debug.Log($"[NET-SYNC] Sending move: inCombat={inCombat}, aimAngle={aimAngle:F1}°, arrowFound={_arrowController != null}");
+        }
     }
 }

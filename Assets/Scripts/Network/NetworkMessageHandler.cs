@@ -86,6 +86,12 @@ public static class NetworkMessageHandler
         float aimAngle = move.aimAngle; // может быть 0
         bool inCombat = move.inCombat; // находится ли удаленный игрок в боевом режиме
         
+        // Отладочное логирование
+        if (Application.isPlaying && inCombat)
+        {
+            Debug.Log($"[NET] Received move from {move.id}: inCombat={inCombat}, aimAngle={aimAngle:F1}°");
+        }
+        
         if (!players.TryGetValue(move.id, out var rp) || rp == null)
         {
             rp = RemotePlayer.Create(move.id);
