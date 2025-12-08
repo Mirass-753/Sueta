@@ -22,8 +22,6 @@ public class PlayerInventory : MonoBehaviour
 
     public event Action OnInventoryChanged;
 
-    private ItemPickup _nearbyPickup;
-
     private void Awake()
     {
         if (ownerTransform == null)
@@ -40,52 +38,25 @@ public class PlayerInventory : MonoBehaviour
         }
     }
 
-    private void Update()
+    public bool TryPickup(ItemPickup pickup)
     {
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            TryPickupNearby();
-        }
-    }
+        if (pickup == null || pickup.item == null)
+            return false;
 
-    private void TryPickupNearby()
-    {
-        if (_nearbyPickup == null || _nearbyPickup.item == null)
-            return;
+        bool added = AddItem(pickup.item);
 
-        if (ownerTransform != null)
-        {
-            Vector2Int playerCell = WorldToCell(ownerTransform.position);
-            Vector2Int itemCell = WorldToCell(_nearbyPickup.transform.position);
-            if (playerCell != itemCell)
-                return; // предмет не в той же клетке
-        }
-
-        bool added = AddItem(_nearbyPickup.item);
-
-        Debug.Log($"TryPickupNearby: {_nearbyPickup.item.itemName}, added={added}");
+        Debug.Log($"TryPickup: {pickup.item.itemName}, added={added}");
 
         if (added)
         {
             var pool = FindFirstObjectByType<DroppedItemPool>();
             if (pool != null)
-                pool.Despawn(_nearbyPickup.gameObject);
+                pool.Despawn(pickup.gameObject);
             else
-                _nearbyPickup.gameObject.SetActive(false);
-
-            _nearbyPickup = null;
+                pickup.gameObject.SetActive(false);
         }
-    }
 
-    public void RegisterNearbyPickup(ItemPickup pickup)
-    {
-        _nearbyPickup = pickup;
-    }
-
-    public void UnregisterNearbyPickup(ItemPickup pickup)
-    {
-        if (_nearbyPickup == pickup)
-            _nearbyPickup = null;
+        return added;
     }
 
     public bool AddItem(Item item, int quantity = 1)

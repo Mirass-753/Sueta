@@ -12,8 +12,14 @@ public class ItemPickup : MonoBehaviour
     private void Awake()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
-        _collider = GetComponent<CircleCollider2D>();
-        _collider.isTrigger = true;
+        EnsureCollider();
+        UpdateVisual();
+    }
+
+    private void OnValidate()
+    {
+        _spriteRenderer = GetComponent<SpriteRenderer>();
+        EnsureCollider();
         UpdateVisual();
     }
 
@@ -32,34 +38,34 @@ public class ItemPickup : MonoBehaviour
         var inventory = other.GetComponent<PlayerInventory>();
         if (inventory == null) return;
 
-        Debug.Log($"ItemPickup: player entered, can pickup {item?.itemName}");
-        inventory.RegisterNearbyPickup(this);
+        Debug.Log($"ItemPickup: player entered, picking up {item?.itemName}");
+        inventory.TryPickup(this);
     }
 
-    private void OnTriggerExit2D(Collider2D other)
+    private void EnsureCollider()
     {
-        if (!other.CompareTag("Player")) return;
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
 
-        var inventory = other.GetComponent<PlayerInventory>();
-        if (inventory == null) return;
+        if (_collider == null)
+            _collider = gameObject.AddComponent<CircleCollider2D>();
 
-        Debug.Log("ItemPickup: player left trigger");
-        inventory.UnregisterNearbyPickup(this);
+        _collider.isTrigger = true;
     }
 
     public void ReactivatePickup(Vector3 position, Item newItem = null, int unusedQuantity = 1)
     {
-    if (newItem != null)
-        item = newItem;
+        if (newItem != null)
+            item = newItem;
 
-    transform.position = position;
-    gameObject.SetActive(true);
+        transform.position = position;
+        gameObject.SetActive(true);
 
-    if (_collider == null)
-        _collider = GetComponent<CircleCollider2D>();
+        if (_collider == null)
+            _collider = GetComponent<CircleCollider2D>();
 
-    _collider.enabled = true;
+        _collider.enabled = true;
 
-    UpdateVisual();
+        UpdateVisual();
     }
 }
