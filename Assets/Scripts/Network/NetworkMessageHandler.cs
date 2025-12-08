@@ -21,6 +21,10 @@ public static class NetworkMessageHandler
     private static readonly Dictionary<string, EnergyCacheEntry> energyCache =
         new Dictionary<string, EnergyCacheEntry>();
 
+    // ----- Отложенные спавны добычи -----
+    private static readonly List<NetMessagePreySpawn> pendingPreySpawns =
+        new List<NetMessagePreySpawn>();
+
     // ================== ВХОДНАЯ ТОЧКА ==================
 
     public static void Handle(string json)
@@ -361,7 +365,11 @@ public static class NetworkMessageHandler
 
         var hunt = Object.FindFirstObjectByType<ScentHuntController>();
         if (hunt == null || hunt.preyPrefab == null)
+        {
+            // Сохраняем, чтобы заспавнить, когда компонент появится (например, после загрузки сцены)
+            pendingPreySpawns.Add(msg);
             return;
+        }
 
         var pos = new Vector3(msg.x, msg.y, 0f);
         var prey = Object.Instantiate(hunt.preyPrefab, pos, Quaternion.identity);
@@ -370,6 +378,42 @@ public static class NetworkMessageHandler
             drop = ItemRegistry.FindItemByName(msg.dropItemName);
 
         prey.Init(hunt.player != null ? hunt.player : null, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, false);
+    }
+
+    /// <summary>
+    /// Вызывается из ScentHuntController, когда компонент становится доступен.
+    /// Позволяет заспавнить добычу, если сообщение пришло раньше.
+    /// </summary>
+    public static void TryConsumePendingPreySpawns(ScentHuntController hunt)
+    {
+        if (hunt == null || hunt.preyPrefab == null || pendingPreySpawns.Count == 0)
+            return;
+
+        for (int i = pendingPreySpawns.Count - 1; i >= 0; i--)
+        {
+            var msg = pendingPreySpawns[i];
+            if (msg == null || string.IsNullOrEmpty(msg.preyId))
+            {
+                pendingPreySpawns.RemoveAt(i);
+                continue;
+            }
+
+            if (PreyController.TryGetByNetworkId(msg.preyId, out _))
+            {
+                pendingPreySpawns.RemoveAt(i);
+                continue;
+            }
+
+            var pos = new Vector3(msg.x, msg.y, 0f);
+            var prey = Object.Instantiate(hunt.preyPrefab, pos, Quaternion.identity);
+            Item drop = null;
+            if (!string.IsNullOrEmpty(msg.dropItemName))
+                drop = ItemRegistry.FindItemByName(msg.dropItemName);
+
+            prey.Init(hunt.player != null ? hunt.player : null, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, false);
+
+            pendingPreySpawns.RemoveAt(i);
+        }
     }
 
     private static void HandlePreyPosition(string json)
