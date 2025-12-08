@@ -28,9 +28,12 @@ public class ScentHuntController : MonoBehaviour
     PreyController _prey;
     bool _sniffing;
     Coroutine _sniffRoutine;
+    string _currentPreyId;
 
     void Update()
     {
+        EnsurePlayer();
+
         if (!_sniffing && _prey == null && Input.GetKeyDown(sniffKey))
             _sniffRoutine = StartCoroutine(SniffRoutine());
 
@@ -57,6 +60,7 @@ public class ScentHuntController : MonoBehaviour
 
     void SpawnPrey()
     {
+        EnsurePlayer();
         if (preyPrefab == null || player == null) return;
 
         Vector2Int playerCell = WorldToCell(player.position);
@@ -75,12 +79,16 @@ public class ScentHuntController : MonoBehaviour
         _prey = Instantiate(preyPrefab, spawnPos, Quaternion.identity);
         _prey.Init(player, gridSize, cellCenterOffset, blockMask, meatPickupPrefab, dropItem);
         _prey.OnKilled += HandlePreyKilled;
+        _currentPreyId = _prey.networkId;
+
+        SendPreySpawn(_prey, spawnPos);
     }
 
     void HandlePreyKilled(PreyController prey)
     {
         if (_prey == prey) _prey = null;
         if (scentLine) scentLine.enabled = false;
+        _currentPreyId = null;
     }
 
     void UpdateScentLine()
@@ -134,5 +142,31 @@ public class ScentHuntController : MonoBehaviour
         float wx = (cell.x + cellCenterOffset.x) * gridSize;
         float wy = (cell.y + cellCenterOffset.y) * gridSize;
         return new Vector3(wx, wy, 0f);
+    }
+
+    void EnsurePlayer()
+    {
+        if (player != null) return;
+
+        var local = FindObjectOfType<PlayerController>();
+        if (local != null)
+            player = local.transform;
+    }
+
+    void SendPreySpawn(PreyController prey, Vector3 spawnPos)
+    {
+        if (prey == null || WebSocketClient.Instance == null || string.IsNullOrEmpty(prey.networkId))
+            return;
+
+        var msg = new NetMessagePreySpawn
+        {
+            preyId = prey.networkId,
+            x = spawnPos.x,
+            y = spawnPos.y,
+            ownerId = PlayerController.LocalPlayerId,
+            dropItemName = dropItem != null ? dropItem.name : null
+        };
+
+        WebSocketClient.Instance.Send(JsonUtility.ToJson(msg));
     }
 }

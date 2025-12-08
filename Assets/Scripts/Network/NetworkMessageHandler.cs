@@ -55,6 +55,9 @@ public static class NetworkMessageHandler
             case "disconnect":    HandleDisconnect(json);   break;
             case "item_drop":     HandleItemDrop(json);     break;
             case "item_pickup":   HandleItemPickup(json);   break;
+            case "prey_spawn":    HandlePreySpawn(json);    break;
+            case "prey_pos":      HandlePreyPosition(json); break;
+            case "prey_kill":     HandlePreyKill(json);     break;
             default:
                 // неизвестные типы просто игнорируем
                 break;
@@ -333,6 +336,78 @@ public static class NetworkMessageHandler
             else
                 pickup.gameObject.SetActive(false);
         }
+    }
+
+    // ================== ОХОТА ==================
+
+    private static void HandlePreySpawn(string json)
+    {
+        NetMessagePreySpawn msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessagePreySpawn>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить prey_spawn: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.preyId))
+            return;
+
+        if (PreyController.TryGetByNetworkId(msg.preyId, out _))
+            return; // уже есть
+
+        var hunt = Object.FindFirstObjectByType<ScentHuntController>();
+        if (hunt == null || hunt.preyPrefab == null)
+            return;
+
+        var pos = new Vector3(msg.x, msg.y, 0f);
+        var prey = Object.Instantiate(hunt.preyPrefab, pos, Quaternion.identity);
+        Item drop = null;
+        if (!string.IsNullOrEmpty(msg.dropItemName))
+            drop = ItemRegistry.FindItemByName(msg.dropItemName);
+
+        prey.Init(hunt.player != null ? hunt.player : null, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, false);
+    }
+
+    private static void HandlePreyPosition(string json)
+    {
+        NetMessagePreyPosition msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessagePreyPosition>(json);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.id))
+            return;
+
+        if (PreyController.TryGetByNetworkId(msg.id, out var prey) && prey != null)
+            prey.SetNetworkPosition(new Vector3(msg.x, msg.y, 0f));
+    }
+
+    private static void HandlePreyKill(string json)
+    {
+        NetMessagePreyKill msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessagePreyKill>(json);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.id))
+            return;
+
+        if (PreyController.TryGetByNetworkId(msg.id, out var prey) && prey != null)
+            prey.Kill(true);
     }
 
     // ================== DISCONNECT ==================
