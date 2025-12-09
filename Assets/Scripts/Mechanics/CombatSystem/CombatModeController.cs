@@ -51,7 +51,10 @@ public float inputBufferSeconds = 0.25f;
 
     [Header("Collision vs Players")]
     [SerializeField] private BoxCollider2D bodyCollider;   // тот же коллайдер, что и у Player
-    [SerializeField] private LayerMask playerLayer;        // слой игроков (например, 'Player')
+    [SerializeField] private LayerMask playerLayer;  
+    
+    [Header("Collision vs Environment")]
+[SerializeField] private LayerMask environmentLayer;       // слой игроков (например, 'Player')
 
     private bool _combatActive;
     private bool _isTeleporting;
@@ -363,6 +366,27 @@ public float inputBufferSeconds = 0.25f;
         return hit.gameObject != gameObject;
     }
 
+    /// <summary>
+/// Проверка, что в целевой точке стоит объект окружения (дерево, камень).
+/// </summary>
+private bool IsBlockedByEnvironment(Vector2 targetWorldPos)
+{
+    if (bodyCollider == null)
+        return false;
+
+    Vector2 size = bodyCollider.bounds.size * 0.9f;
+
+    Collider2D hit = Physics2D.OverlapBox(
+        targetWorldPos,
+        size,
+        0f,
+        environmentLayer
+    );
+
+    return hit != null;
+}
+
+
     private IEnumerator TeleportStep(Vector2 dir)
     {
         _isTeleporting = true;
@@ -385,6 +409,15 @@ public float inputBufferSeconds = 0.25f;
             _moveRoutine = null;
             yield break;
         }
+
+        // 1b) коллизия с окружением (деревья, камни)
+if (IsBlockedByEnvironment(targetPos)) 
+{
+    _isTeleporting = false;
+    _moveRoutine = null;
+    yield break;
+}
+
 
         // 2) препятствия по гриду
         bool canMove = occupancyManager == null || occupancyManager.TryMove(currentCell, nextCell);
