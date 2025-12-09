@@ -81,6 +81,10 @@ public partial class PlayerController : MonoBehaviour
     [SerializeField, LabelText("Player Layer")]
     private LayerMask playerLayer;        // слой, на котором висят игроки
 
+    [TitleGroup("Collision")]
+    [SerializeField, LabelText("Environment Layer")]
+    private LayerMask environmentLayer;   // слой окружения (деревья, стены и т.п.)
+
     // ====== РАНТАЙМ-СОСТОЯНИЕ (только просмотр) ======
 
     [FoldoutGroup("Runtime State"), ShowInInspector, ReadOnly, LabelText("Target Position")]
