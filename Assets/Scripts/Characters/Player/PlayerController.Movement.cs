@@ -73,6 +73,23 @@ public partial class PlayerController : MonoBehaviour
         return hit.gameObject != gameObject;
     }
 
+    private bool IsBlockedByEnvironment(Vector2 targetWorldPos)
+    {
+        if (bodyCollider == null)
+            return false;
+
+        Vector2 size = bodyCollider.bounds.size * 0.9f;
+
+        Collider2D hit = Physics2D.OverlapBox(
+            targetWorldPos,
+            size,
+            0f,
+            environmentLayer
+        );
+
+        return hit != null;
+    }
+
     private IEnumerator MoveToDirection(Vector2 direction)
     {
         _isMoving = true;
@@ -102,7 +119,17 @@ public partial class PlayerController : MonoBehaviour
             yield break;
         }
 
-        // 2) проверка по гриду (стены, препятствия и т.п.)
+        // 2) проверка окружения (стены, деревья и другие объекты слоя Environment)
+        if (IsBlockedByEnvironment(targetPos))
+        {
+            Debug.Log("[MOVE] blocked by environment at " + targetPos);
+            _isMoving = false;
+            _staminaSystem?.StopRunning();
+            SetIdleSprite();
+            yield break;
+        }
+
+        // 3) проверка по гриду (стены, препятствия и т.п.)
         bool canMove = occupancyManager == null || occupancyManager.TryMove(_currentCell, nextCell);
         if (!canMove)
         {
