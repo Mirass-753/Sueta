@@ -78,16 +78,25 @@ public partial class PlayerController : MonoBehaviour
         if (bodyCollider == null)
             return false;
 
+        Vector2 origin = transform.position;
+        Vector2 direction = targetWorldPos - origin;
+        float distance = direction.magnitude;
+
+        if (distance <= 0f)
+            return false;
+
         Vector2 size = bodyCollider.bounds.size * 0.9f;
 
-        Collider2D hit = Physics2D.OverlapBox(
-            targetWorldPos,
+        RaycastHit2D hit = Physics2D.BoxCast(
+            origin,
             size,
             0f,
+            direction.normalized,
+            distance,
             environmentLayer
         );
 
-        return hit != null;
+        return hit.collider != null;
     }
 
     private IEnumerator MoveToDirection(Vector2 direction)

@@ -7,6 +7,8 @@ public partial class PlayerController : MonoBehaviour
 
     private void Awake()
     {
+        EnsureCollisionSetup();
+
         // генерируем id игрока на сессию
         myId = Guid.NewGuid().ToString();
         LocalPlayerId = myId;
@@ -62,6 +64,23 @@ public partial class PlayerController : MonoBehaviour
     private void OnDisable()
     {
         occupancyManager?.Unregister(_currentCell);
+    }
+
+    private void OnValidate()
+    {
+        EnsureCollisionSetup();
+    }
+
+    private void EnsureCollisionSetup()
+    {
+        if (bodyCollider == null)
+            bodyCollider = GetComponent<BoxCollider2D>();
+
+        if (playerLayer == 0)
+            playerLayer = LayerMask.GetMask("Player");
+
+        if (environmentLayer == 0)
+            environmentLayer = LayerMask.GetMask("Environment");
     }
 
     private void Update()
