@@ -20,11 +20,14 @@ public class InventoryUI : MonoBehaviour
     private bool _isOpen;
     private int _dragFromIndex = -1;
     private Camera _mainCamera;
+    private bool _warnedMissingInventory;
+    private bool _warnedMissingPanel;
 
     void Start()
     {
         _mainCamera = Camera.main;
         TryBindInventory();
+        WarnIfUiSetupIncomplete();
 
         _isOpen = false;
         if (inventoryPanel != null)
@@ -69,6 +72,11 @@ public class InventoryUI : MonoBehaviour
 #endif
         if (inv != null)
             SetPlayerInventory(inv);
+        else if (!_warnedMissingInventory)
+        {
+            Debug.LogWarning("InventoryUI: PlayerInventory не найден в сцене. Инвентарь не откроется без привязки.");
+            _warnedMissingInventory = true;
+        }
     }
 
     public void SetPlayerInventory(PlayerInventory inv)
@@ -92,6 +100,9 @@ public class InventoryUI : MonoBehaviour
 
     void SetOpen(bool isOpen)
     {
+        if (!EnsurePanelPresent())
+            return;
+
         _isOpen = isOpen;
         if (inventoryPanel != null)
             inventoryPanel.SetActive(_isOpen);
@@ -101,6 +112,33 @@ public class InventoryUI : MonoBehaviour
             CancelDrag();
             HideHoverPanel();
         }
+    }
+
+    /// <summary>
+    /// Public wrapper for UI buttons: toggles the inventory panel on click.
+    /// Keeping this public is intentional so UnityEvents can call it.
+    /// </summary>
+    public void ToggleOpen()
+    {
+        SetOpen(!_isOpen);
+    }
+
+    /// <summary>
+    /// Opens the inventory panel from UI buttons or other scripts.
+    /// Public visibility is required for UnityEvent bindings.
+    /// </summary>
+    public void Open()
+    {
+        SetOpen(true);
+    }
+
+    /// <summary>
+    /// Closes the inventory panel from UI buttons or other scripts.
+    /// Public visibility is required for UnityEvent bindings.
+    /// </summary>
+    public void Close()
+    {
+        SetOpen(false);
     }
 
     // ---------- UI ----------
@@ -115,7 +153,20 @@ public class InventoryUI : MonoBehaviour
 
     void CreateSlots()
     {
-        if (slotsParent == null || slotPrefab == null || playerInventory == null) return;
+        if (playerInventory == null)
+            return;
+
+        if (slotsParent == null)
+        {
+            Debug.LogWarning("InventoryUI: slotsParent не назначен, слоты не будут созданы.");
+            return;
+        }
+
+        if (slotPrefab == null)
+        {
+            Debug.LogWarning("InventoryUI: slotPrefab не назначен, слоты не будут созданы.");
+            return;
+        }
 
         foreach (Transform child in slotsParent)
             Destroy(child.gameObject);
@@ -209,5 +260,40 @@ public class InventoryUI : MonoBehaviour
     {
         if (hoverPanel != null)
             hoverPanel.SetActive(false);
+    }
+
+    private bool EnsurePanelPresent()
+    {
+        if (inventoryPanel != null)
+            return true;
+
+        if (!_warnedMissingPanel)
+        {
+            Debug.LogWarning("InventoryUI: inventoryPanel не назначен. Тоггл инвентаря не сможет показать UI.");
+            _warnedMissingPanel = true;
+        }
+
+        return false;
+    }
+
+    private void WarnIfUiSetupIncomplete()
+    {
+        if (inventoryPanel == null)
+            Debug.LogWarning("InventoryUI: inventoryPanel не установлена. Привяжите корневой объект панели инвентаря в инспекторе.");
+
+        if (slotsParent == null)
+            Debug.LogWarning("InventoryUI: slotsParent не установлен. Укажите контейнер, куда будут создаваться слоты.");
+
+        if (slotPrefab == null)
+            Debug.LogWarning("InventoryUI: slotPrefab не установлен. Слот нельзя будет отрисовать.");
+
+        if (dragIcon == null)
+            Debug.LogWarning("InventoryUI: dragIcon не назначен. Перетаскивание предметов работать не будет.");
+
+        if (hoverPanel == null)
+            Debug.LogWarning("InventoryUI: hoverPanel не назначена. Подсказки над предметами не появятся.");
+
+        if (EventSystem.current == null)
+            Debug.LogWarning("InventoryUI: на сцене нет EventSystem, UI-кнопки не будут работать.");
     }
 }
