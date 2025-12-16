@@ -103,6 +103,33 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Public wrapper for UI buttons: toggles the inventory panel on click.
+    /// Keeping this public is intentional so UnityEvents can call it.
+    /// </summary>
+    public void ToggleOpen()
+    {
+        SetOpen(!_isOpen);
+    }
+
+    /// <summary>
+    /// Opens the inventory panel from UI buttons or other scripts.
+    /// Public visibility is required for UnityEvent bindings.
+    /// </summary>
+    public void Open()
+    {
+        SetOpen(true);
+    }
+
+    /// <summary>
+    /// Closes the inventory panel from UI buttons or other scripts.
+    /// Public visibility is required for UnityEvent bindings.
+    /// </summary>
+    public void Close()
+    {
+        SetOpen(false);
+    }
+
     // ---------- UI ----------
     void UpdatePanelPosition()
     {
