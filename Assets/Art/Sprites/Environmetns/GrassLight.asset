@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 13312, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: "ChatGPT Image 19 \u043D\u043E\u044F\u0431. 2025 \u0433., 03_03_55 (2)_0"
+  m_Name: GrassLight
   m_EditorClassIdentifier: 
-  m_Sprite: {fileID: 749259283228500434, guid: 6094f320f207271438eb91ef9e5621f0, type: 3}
+  m_Sprite: {fileID: 21300000, guid: b55e662e06edbb940b1009cc199a03d5, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Transform:
     e00: 1
