@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4391716338303173452}
   - component: {fileID: 6807213057629397571}
   - component: {fileID: 449885255962197387}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: kamenbig (2)_3
   m_TagString: Untagged
   m_Icon: {fileID: 0}

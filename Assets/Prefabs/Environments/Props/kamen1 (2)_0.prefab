@@ -11,7 +11,8 @@ GameObject:
   - component: {fileID: 7283675164778502376}
   - component: {fileID: 2497338370356936169}
   - component: {fileID: 135006466553122592}
-  m_Layer: 0
+  - component: {fileID: -867660611699043501}
+  m_Layer: 7
   m_Name: kamen1 (2)_0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -104,3 +105,48 @@ MonoBehaviour:
   randomizeRotation: 0
   minRotationZ: -5
   maxRotationZ: 5
+--- !u!61 &-867660611699043501
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4169097947671297325}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0, y: 0}
+  m_SpriteTilingProperty:
+    border: {x: 0, y: 0, z: 0, w: 0}
+    pivot: {x: 0.5, y: 0.5}
+    oldSize: {x: 3.07, y: 1.45}
+    newSize: {x: 3.07, y: 1.45}
+    adaptiveTilingThreshold: 0.5
+    drawMode: 0
+    adaptiveTiling: 0
+  m_AutoTiling: 0
+  serializedVersion: 2
+  m_Size: {x: 2.89, y: 1.81}
+  m_EdgeRadius: 0
