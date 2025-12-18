@@ -2860,7 +2860,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d7694657d5b5574aaa9139e3c4274ec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  remotePlayerPrefab: {fileID: 8982031949265913468, guid: 05dc707f0dc486946bc782825d96f659, type: 3}
+  remotePlayerPrefab: {fileID: 3974133613454669606, guid: 38d7c9d5443777c48b3c16b66992099a, type: 3}
   idleSprite: {fileID: 21300000, guid: bd9b0804457643f4f9cb3d3e38b6b40e, type: 3}
   movingSprite: {fileID: 21300000, guid: 0a2bc64995bc6034f8334384b2117918, type: 3}
 --- !u!1 &1277861805
@@ -5704,7 +5704,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3073060032690685179, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: selfDamagePercent
-      value: 0.1
+      value: 0.008
       objectReference: {fileID: 0}
     - target: {fileID: 3497931571330392339, guid: 5f6d8273fd97daa4fa3287b16babd49f, type: 3}
       propertyPath: owner
