@@ -242,7 +242,10 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
                 sourceId = sourceId,
                 targetId = networkId,
                 amount   = remaining,
-                zone     = zone != null ? zone.zone.ToString() : ""
+                zone     = zone != null ? zone.zone.ToString() : "",
+                x        = transform.position.x,
+                y        = transform.position.y,
+                z        = transform.position.z
             };
 
             string json = JsonUtility.ToJson(req);

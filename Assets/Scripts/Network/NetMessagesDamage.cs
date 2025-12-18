@@ -16,6 +16,9 @@ public class NetMessageDamageRequest : NetMessageBase
     public string targetId;  // по кому попали
     public float amount;     // "сырое" количество урона после блоков/зон
     public string zone;      // зона попадания (может быть пустой строкой)
+    public float x;          // позиция цели (для попапов урона)
+    public float y;
+    public float z;
 
     public NetMessageDamageRequest()
     {
