@@ -274,7 +274,6 @@ function handleDamageRequest(ws, msg) {
 
   if (appliedDamage > 0) {
     const targetState = playerStates.get(targetId) || {};
-
     const popupX = typeof msg.x === 'number'
       ? msg.x
       : typeof targetState.x === 'number'
@@ -288,6 +287,7 @@ function handleDamageRequest(ws, msg) {
     const popupZ = typeof msg.z === 'number'
       ? msg.z
       : 0;
+    const popupZone = typeof msg.zone === 'string' ? msg.zone : '';
 
     const popupMsg = {
       type: 'damage_popup',
@@ -297,6 +297,17 @@ function handleDamageRequest(ws, msg) {
       z: popupZ,
     };
     broadcast(popupMsg);
+
+    const hitFxMsg = {
+      type: 'hit_fx',
+      fx: 'claws',
+      targetId,
+      zone: popupZone,
+      x: popupX,
+      y: popupY,
+      z: popupZ,
+    };
+    broadcast(hitFxMsg);
   }
 
   broadcast(evt);
