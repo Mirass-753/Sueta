@@ -601,6 +601,41 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7686279037084335010, guid: b1e919690bad67f448491f335f127246, type: 3}
   m_PrefabInstance: {fileID: 203118883}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &282055818
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 282055819}
+  m_Layer: 5
+  m_Name: Popups Layer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &282055819
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 282055818}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1233987470}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -1820, y: -980}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1001 &339850832
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -850,7 +885,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 8315869902087936806, guid: 9b0dd257925a3de4babdb594cdd1b5a2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 282055819}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 9b0dd257925a3de4babdb594cdd1b5a2, type: 3}
 --- !u!1 &509477528
@@ -2762,6 +2800,64 @@ Transform:
   - {fileID: 1523265011}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!223 &1233987469 stripped
+Canvas:
+  m_CorrespondingSourceObject: {fileID: 1238205738786016623, guid: 9b0dd257925a3de4babdb594cdd1b5a2, type: 3}
+  m_PrefabInstance: {fileID: 470511230}
+  m_PrefabAsset: {fileID: 0}
+--- !u!224 &1233987470 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 8315869902087936806, guid: 9b0dd257925a3de4babdb594cdd1b5a2, type: 3}
+  m_PrefabInstance: {fileID: 470511230}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1240552517
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1240552519}
+  - component: {fileID: 1240552518}
+  m_Layer: 0
+  m_Name: DamagePopupManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1240552518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1240552517}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9942d3bd93db58c49a31a03df92f0e30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canvas: {fileID: 1233987469}
+  popupPrefab: {fileID: 6835358996661666639, guid: 7ea76d4791960bb469474612abb98624, type: 3}
+  worldOffset: {x: 0, y: 0.6, z: 0}
+  damageColor: {r: 1, g: 0, b: 0, a: 1}
+--- !u!4 &1240552519
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1240552517}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 938.7384, y: 579.0593, z: -6.894131}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1249162231
 GameObject:
   m_ObjectHideFlags: 0
@@ -3085,7 +3181,7 @@ SpriteShapeRenderer:
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
+  m_DynamicOccludee: 0
   m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
@@ -6054,3 +6150,4 @@ SceneRoots:
   - {fileID: 1339394257}
   - {fileID: 470511230}
   - {fileID: 509477530}
+  - {fileID: 1240552519}
