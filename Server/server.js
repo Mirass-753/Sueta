@@ -274,12 +274,27 @@ function handleDamageRequest(ws, msg) {
 
   if (appliedDamage > 0) {
     const targetState = playerStates.get(targetId) || {};
+
+    const popupX = typeof msg.x === 'number'
+      ? msg.x
+      : typeof targetState.x === 'number'
+        ? targetState.x
+        : 0;
+    const popupY = typeof msg.y === 'number'
+      ? msg.y
+      : typeof targetState.y === 'number'
+        ? targetState.y
+        : 0;
+    const popupZ = typeof msg.z === 'number'
+      ? msg.z
+      : 0;
+
     const popupMsg = {
       type: 'damage_popup',
       amount: Math.round(appliedDamage),
-      x: typeof targetState.x === 'number' ? targetState.x : 0,
-      y: typeof targetState.y === 'number' ? targetState.y : 0,
-      z: 0,
+      x: popupX,
+      y: popupY,
+      z: popupZ,
     };
     broadcast(popupMsg);
   }
