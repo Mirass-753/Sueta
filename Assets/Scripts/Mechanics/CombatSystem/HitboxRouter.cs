@@ -3,7 +3,7 @@ using UnityEngine;
 public class HitboxRouter : MonoBehaviour
 {
     [Header("Damage")]
-    public float baseDamage = 10f;
+    public float baseDamage = 100f;
 
     [Header("Attacker")]
     [Tooltip("Корень атакующего (где висит Damageable / PlayerController). " +
