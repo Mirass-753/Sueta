@@ -54,6 +54,7 @@ public static class NetworkMessageHandler
             case "move":          HandleMove(json);         break;
             case "damage":        HandleDamage(json);       break;
             case "damage_popup":  HandleDamagePopup(json);  break;
+            case "hit_fx":        HandleHitFx(json);       break;
             case "hp_sync":       HandleHpSync(json);       break;
             case "energy_update": HandleEnergyUpdate(json); break;
             case "energy_sync":   HandleEnergySync(json);   break;
@@ -184,6 +185,26 @@ public static class NetworkMessageHandler
 
         var worldPos = new Vector3(msg.x, msg.y, msg.z);
         DamagePopupManager.Instance?.ShowDamage(msg.amount, worldPos);
+    }
+
+    private static void HandleHitFx(string json)
+    {
+        HitFxMessage msg;
+        try
+        {
+            msg = JsonUtility.FromJson<HitFxMessage>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить hit_fx: {json}");
+            return;
+        }
+
+        if (msg == null || msg.fx != "claws")
+            return;
+
+        var fallbackPos = new Vector3(msg.x, msg.y, msg.z);
+        ClawHitFxManager.Instance?.SpawnClaws(msg.targetId, msg.zone, fallbackPos);
     }
 
     private static void HandleHpSync(string json)
