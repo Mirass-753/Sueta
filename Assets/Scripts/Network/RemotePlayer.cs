@@ -16,6 +16,7 @@ public class RemotePlayer : MonoBehaviour
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private RemoteArrowView arrowView;
     [SerializeField] private ArrowController arrow;   // стрелка удалённого игрока
+    [SerializeField] private RemoteArrowSmoother arrowSmoother;
 
 
     private Vector2 targetPos;
@@ -85,6 +86,17 @@ public class RemotePlayer : MonoBehaviour
                 }
             }
 
+            if (arrowSmoother == null)
+            {
+                arrowSmoother = GetComponent<RemoteArrowSmoother>();
+                if (arrowSmoother == null && arrow != null)
+                    arrowSmoother = arrow.GetComponent<RemoteArrowSmoother>();
+                if (arrowSmoother != null && arrowSmoother.gameObject != null && Application.isPlaying)
+                {
+                    Debug.Log($"[REMOTE] {name} (id={id}): Found RemoteArrowSmoother on {arrowSmoother.gameObject.name}");
+                }
+            }
+
             // задаём начальный спрайт
             if (spriteRenderer != null && idleSprite != null)
                 spriteRenderer.sprite = idleSprite;
@@ -149,6 +161,13 @@ public class RemotePlayer : MonoBehaviour
                 }
             }
 
+            if (arrowSmoother == null)
+            {
+                arrowSmoother = GetComponent<RemoteArrowSmoother>();
+                if (arrowSmoother == null && arrow != null)
+                    arrowSmoother = arrow.GetComponent<RemoteArrowSmoother>();
+            }
+
             // Проверяем, что arrow существует и не уничтожен
             if (arrow != null)
             {
@@ -170,7 +189,14 @@ public class RemotePlayer : MonoBehaviour
                         {
                             arrowRef.gameObject.SetActive(true);
                         }
-                        arrowRef.SetAngle(aimAngle);
+                        if (arrowSmoother != null)
+                        {
+                            arrowSmoother.SetTargetAngle(aimAngle);
+                        }
+                        else
+                        {
+                            arrowRef.SetAngle(aimAngle);
+                        }
                         // Отладочное логирование
                         Debug.Log($"[REMOTE] {name} (id={id}): Set arrow angle={aimAngle:F1}°, inCombat={inCombat}, arrowActive={arrowRef.gameObject.activeSelf}, hideWhenNotCombat={arrowRef.hideWhenNotCombat}");
                     }
