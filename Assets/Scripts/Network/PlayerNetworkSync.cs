@@ -4,9 +4,12 @@ public class PlayerNetworkSync : MonoBehaviour
 {
     [SerializeField] private float sendInterval = 0.1f; // 10 раз в секунду
     [SerializeField] private float heartbeatInterval = 5f; // 0 — отключить heartbeat
+    [SerializeField] private float aimAngleSendThresholdDeg = 1.5f; // Минимальное изменение угла для отправки
+    [SerializeField] private float minAimSendInterval = 0.05f; // Минимальный интервал между отправками угла
 
     private float _timeSinceLastSend;
     private float _timeSinceLastHeartbeat;
+    private float _timeSinceLastAimSend;
     private Vector2 _lastPosition;
     private CombatModeController _combatController;
     private ArrowController _arrowController;
@@ -50,6 +53,7 @@ public class PlayerNetworkSync : MonoBehaviour
     {
         _timeSinceLastSend += Time.deltaTime;
         _timeSinceLastHeartbeat += Time.deltaTime;
+        _timeSinceLastAimSend += Time.deltaTime;
         if (_timeSinceLastSend < sendInterval)
         {
             return;
@@ -135,7 +139,7 @@ public class PlayerNetworkSync : MonoBehaviour
             inCombat = inCombat
         };
 
-        bool stateChanged = HasStateChanged(msg);
+        bool stateChanged = HasStateChanged(msg, out bool aimShouldSend);
         bool heartbeatDue = heartbeatInterval > 0f && _timeSinceLastHeartbeat >= heartbeatInterval;
 
         if (!stateChanged && !heartbeatDue)
@@ -150,6 +154,8 @@ public class PlayerNetworkSync : MonoBehaviour
         if (stateChanged)
         {
             _timeSinceLastHeartbeat = 0f;
+            if (aimShouldSend)
+                _timeSinceLastAimSend = 0f;
         }
         else if (heartbeatDue)
         {
@@ -163,17 +169,24 @@ public class PlayerNetworkSync : MonoBehaviour
         }
     }
 
-    private bool HasStateChanged(NetMessageMove msg)
+    private bool HasStateChanged(NetMessageMove msg, out bool aimShouldSend)
     {
         if (_lastSentMove == null)
+        {
+            aimShouldSend = true;
             return true;
+        }
 
         bool positionChanged = Vector2.SqrMagnitude(new Vector2(msg.x, msg.y) - new Vector2(_lastSentMove.x, _lastSentMove.y)) > 0.0001f;
         bool dirChanged = Vector2.SqrMagnitude(new Vector2(msg.dirX, msg.dirY) - new Vector2(_lastSentMove.dirX, _lastSentMove.dirY)) > 0.0001f;
         bool movingChanged = msg.moving != _lastSentMove.moving;
-        bool aimChanged = Mathf.Abs(msg.aimAngle - _lastSentMove.aimAngle) > 0.01f;
         bool combatChanged = msg.inCombat != _lastSentMove.inCombat;
 
-        return positionChanged || dirChanged || movingChanged || aimChanged || combatChanged;
+        float aimDelta = Mathf.Abs(Mathf.DeltaAngle(msg.aimAngle, _lastSentMove.aimAngle));
+        bool aimChangedEnough = aimDelta >= aimAngleSendThresholdDeg;
+        bool aimIntervalReached = _timeSinceLastAimSend >= minAimSendInterval;
+        aimShouldSend = aimChangedEnough && aimIntervalReached;
+
+        return positionChanged || dirChanged || movingChanged || aimShouldSend || combatChanged;
     }
 }
