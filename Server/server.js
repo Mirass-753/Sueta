@@ -17,6 +17,9 @@ const wss = new WebSocket.Server({
 // id -> { x, y, dirX, dirY, moving, aimAngle, inCombat, t }
 const playerStates = new Map();
 
+// NPC: npcId -> { x, y, hp }
+const npcStates = new Map();
+
 // HP
 // id -> hp
 const entityHp = new Map();
@@ -33,6 +36,15 @@ const energyMeta = new Map();
 // ================== ????????? ?????? ==================
 
 const MAX_SPEED = 20; // ????-??? ?? ????????
+
+// ================== NPC ==================
+
+const NPC_SPAWN_POINTS = [
+  { id: 'npc-1', x: -5, y: 0 },
+  { id: 'npc-2', x: 5, y: 0 },
+];
+
+const NPC_STATE_BROADCAST_PERIOD_MS = 100; // 10 raz/sec
 
 // ========= ????????? ?????? ??????? ==========
 //
@@ -110,6 +122,46 @@ function setEnergy(id, energy) {
   return clamped;
 }
 
+// ================== NPC HELPERS ==================
+
+function spawnNpcsIfNeeded() {
+  if (npcStates.size > 0) return;
+
+  NPC_SPAWN_POINTS.forEach((spawn) => {
+    const hp = setHp(spawn.id, DEFAULT_HP);
+    const npcState = { x: spawn.x, y: spawn.y, hp };
+    npcStates.set(spawn.id, npcState);
+
+    broadcast({
+      type: 'npc_spawn',
+      npcId: spawn.id,
+      x: spawn.x,
+      y: spawn.y,
+      hp,
+    });
+  });
+}
+
+function sendNpcSnapshot(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  for (const [npcId, npc] of npcStates.entries()) {
+    const payload = {
+      type: 'npc_spawn',
+      npcId,
+      x: npc.x,
+      y: npc.y,
+      hp: npc.hp,
+    };
+
+    try {
+      ws.send(JSON.stringify(payload));
+    } catch (e) {
+      console.warn('[WS] failed to send npc snapshot:', e.message);
+    }
+  }
+}
+
 // ????????????????? ????????
 function broadcast(obj, exceptWs) {
   const out = JSON.stringify(obj);
@@ -182,6 +234,9 @@ function sendSnapshot(ws) {
       console.warn('[WS] failed to send energy snapshot:', e.message);
     }
   }
+
+  // NPC snapshot
+  sendNpcSnapshot(ws);
 }
 
 // ================== ????????? ????????? ==================
@@ -311,6 +366,17 @@ function handleDamageRequest(ws, msg) {
   }
 
   broadcast(evt);
+
+  if (npcStates.has(targetId)) {
+    const npc = npcStates.get(targetId);
+    npc.hp = newHp;
+
+    if (npc.hp <= 0) {
+      npcStates.delete(targetId);
+      entityHp.delete(targetId);
+      broadcast({ type: 'npc_despawn', npcId: targetId });
+    }
+  }
 }
 
 // ???? ?? ??????? (???)
@@ -395,6 +461,26 @@ setInterval(() => {
   const now = Date.now() / 1000;
 
   for (const [id, currentEnergy] of entityEnergy.entries()) {
+// ================== NPC STATE BROADCAST ==================
+
+setInterval(() => {
+  if (npcStates.size === 0) return;
+
+  for (const [npcId, npc] of npcStates.entries()) {
+    const stateMsg = {
+      type: 'npc_state',
+      npcId,
+      x: npc.x,
+      y: npc.y,
+      hp: npc.hp,
+    };
+
+    broadcast(stateMsg);
+  }
+}, NPC_STATE_BROADCAST_PERIOD_MS);
+
+  spawnNpcsIfNeeded();
+
     if (currentEnergy >= DEFAULT_ENERGY) continue;
 
     const meta = ensureEnergyMeta(id);
