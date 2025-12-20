@@ -27,7 +27,7 @@ public class WebSocketClient : MonoBehaviour
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
     [SerializeField] private bool useEditorUrl = true;
-    [SerializeField] private string editorUrl = "ws://127.0.0.1:3000";
+    [SerializeField] private string editorUrl = "ws://176.98.176.64:3001";
 #endif
 
     [Header("Queue")]

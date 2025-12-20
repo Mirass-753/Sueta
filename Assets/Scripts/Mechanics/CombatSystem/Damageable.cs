@@ -260,6 +260,8 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
     // ---------- 5. Оффлайн / несетевые цели ----------
     if (!healthIsNull && remaining > 0f)
         health.TakeDamage(remaining);
+        DamagePopupManager.Instance?.ShowDamage(Mathf.RoundToInt(remaining), transform.position);
+
 }
 
 
