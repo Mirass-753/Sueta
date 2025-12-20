@@ -64,6 +64,9 @@ public static class NetworkMessageHandler
             case "prey_spawn":    HandlePreySpawn(json);    break;
             case "prey_pos":      HandlePreyPosition(json); break;
             case "prey_kill":     HandlePreyKill(json);     break;
+            case "npc_spawn":     HandleNpcSpawn(json);     break;
+            case "npc_state":     HandleNpcState(json);     break;
+            case "npc_despawn":   HandleNpcDespawn(json);   break;
             default:
                 // неизвестные типы просто игнорируем
                 break;
@@ -498,6 +501,65 @@ public static class NetworkMessageHandler
             prey.Kill(true);
     }
 
+    // ================== NPC ==================
+
+    private static void HandleNpcSpawn(string json)
+    {
+        NetMessageNpcSpawn msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageNpcSpawn>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить npc_spawn: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.npcId))
+            return;
+
+        NpcManager.Instance?.OnNpcSpawn(msg);
+    }
+
+    private static void HandleNpcState(string json)
+    {
+        NetMessageNpcState msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageNpcState>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить npc_state: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.npcId))
+            return;
+
+        NpcManager.Instance?.OnNpcState(msg);
+    }
+
+    private static void HandleNpcDespawn(string json)
+    {
+        NetMessageNpcDespawn msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageNpcDespawn>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить npc_despawn: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.npcId))
+            return;
+
+        NpcManager.Instance?.OnNpcDespawn(msg);
+    }
+
     // ================== DISCONNECT ==================
 
     [System.Serializable]
@@ -546,6 +608,7 @@ public static class NetworkMessageHandler
         players.Clear();
         hpCache.Clear();
         energyCache.Clear();
+        NpcManager.Instance?.ClearAll();
     }
 
     // ================== ВСПОМОГАТЕЛЬНЫЕ ==================

@@ -1,4 +1,43 @@
 
+// Safely invoke wasm callbacks. Guards against missing function pointers that
+// would otherwise trigger `undefined.apply` errors in the generated glue code.
+function webSocketSafeCall(signature, funcPtr, argsArray) {
+        if (typeof funcPtr !== 'number' || funcPtr === 0)
+                return;
+
+        var table = (typeof wasmTable !== 'undefined' && wasmTable)
+                || Module['wasmTable']
+                || (Module['asm'] && Module['asm']['__indirect_function_table']);
+
+        var targetFn = null;
+        if (table && typeof table.get === 'function') {
+                targetFn = table.get(funcPtr);
+                if (typeof targetFn !== 'function') {
+                        console.warn('[JSLIB WebSocket] wasm function pointer missing:', funcPtr);
+                        return;
+                }
+        }
+
+        var dynCaller = Module['dynCall_' + signature];
+        if (typeof dynCaller === 'function') {
+                try {
+                        dynCaller.apply(null, [funcPtr].concat(argsArray));
+                        return;
+                } catch (err) {
+                        console.error('[JSLIB WebSocket] dynCall_' + signature + ' failed:', err);
+                        return;
+                }
+        }
+
+        if (typeof targetFn === 'function') {
+                try {
+                        targetFn.apply(null, argsArray);
+                } catch (err) {
+                        console.error('[JSLIB WebSocket] wasm table call failed:', err);
+                }
+        }
+}
+
 var LibraryWebSocket = {
 	$webSocketState: {
 		/*
@@ -149,8 +188,8 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 				console.log("[JSLIB WebSocket] Connected.");
 
-			if (webSocketState.onOpen)
-				Module.dynCall_vi(webSocketState.onOpen, instanceId);
+                        if (webSocketState.onOpen)
+                                webSocketSafeCall('vi', webSocketState.onOpen, [instanceId]);
 
 		};
 
@@ -169,11 +208,11 @@ var LibraryWebSocket = {
 				var buffer = _malloc(dataBuffer.length);
 				HEAPU8.set(dataBuffer, buffer);
 
-				try {
-					Module.dynCall_viii(webSocketState.onMessage, instanceId, buffer, dataBuffer.length);
-				} finally {
-					_free(buffer);
-				}
+                                try {
+                                        webSocketSafeCall('viii', webSocketState.onMessage, [instanceId, buffer, dataBuffer.length]);
+                                } finally {
+                                        _free(buffer);
+                                }
 
       } else {
 				var dataBuffer = (new TextEncoder()).encode(ev.data);
@@ -181,11 +220,11 @@ var LibraryWebSocket = {
 				var buffer = _malloc(dataBuffer.length);
 				HEAPU8.set(dataBuffer, buffer);
 
-				try {
-					Module.dynCall_viii(webSocketState.onMessage, instanceId, buffer, dataBuffer.length);
-				} finally {
-					_free(buffer);
-				}
+                                try {
+                                        webSocketSafeCall('viii', webSocketState.onMessage, [instanceId, buffer, dataBuffer.length]);
+                                } finally {
+                                        _free(buffer);
+                                }
 
       }
 
@@ -203,11 +242,11 @@ var LibraryWebSocket = {
 				var buffer = _malloc(length);
 				stringToUTF8(msg, buffer, length);
 
-				try {
-					Module.dynCall_vii(webSocketState.onError, instanceId, buffer);
-				} finally {
-					_free(buffer);
-				}
+                                try {
+                                        webSocketSafeCall('vii', webSocketState.onError, [instanceId, buffer]);
+                                } finally {
+                                        _free(buffer);
+                                }
 
 			}
 
@@ -218,8 +257,8 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 				console.log("[JSLIB WebSocket] Closed.");
 
-			if (webSocketState.onClose)
-				Module.dynCall_vii(webSocketState.onClose, instanceId, ev.code);
+                        if (webSocketState.onClose)
+                                webSocketSafeCall('vii', webSocketState.onClose, [instanceId, ev.code]);
 
 			delete instance.ws;
 
