@@ -3,11 +3,14 @@ using UnityEngine;
 public class PlayerNetworkSync : MonoBehaviour
 {
     [SerializeField] private float sendInterval = 0.1f; // 10 раз в секунду
+    [SerializeField] private float heartbeatInterval = 5f; // 0 — отключить heartbeat
 
     private float _timeSinceLastSend;
+    private float _timeSinceLastHeartbeat;
     private Vector2 _lastPosition;
     private CombatModeController _combatController;
     private ArrowController _arrowController;
+    private NetMessageMove _lastSentMove;
 
     private void Start()
     {
@@ -46,6 +49,7 @@ public class PlayerNetworkSync : MonoBehaviour
     private void Update()
     {
         _timeSinceLastSend += Time.deltaTime;
+        _timeSinceLastHeartbeat += Time.deltaTime;
         if (_timeSinceLastSend < sendInterval)
         {
             return;
@@ -131,13 +135,45 @@ public class PlayerNetworkSync : MonoBehaviour
             inCombat = inCombat
         };
 
+        bool stateChanged = HasStateChanged(msg);
+        bool heartbeatDue = heartbeatInterval > 0f && _timeSinceLastHeartbeat >= heartbeatInterval;
+
+        if (!stateChanged && !heartbeatDue)
+        {
+            return;
+        }
+
         string json = JsonUtility.ToJson(msg);
         WebSocketClient.Instance.Send(json);
-        
+
+        _lastSentMove = msg;
+        if (stateChanged)
+        {
+            _timeSinceLastHeartbeat = 0f;
+        }
+        else if (heartbeatDue)
+        {
+            _timeSinceLastHeartbeat = 0f;
+        }
+
         // Отладочное логирование (можно убрать после проверки)
-        if (Application.isPlaying && inCombat)
+        if (Application.isPlaying && inCombat && stateChanged)
         {
             Debug.Log($"[NET-SYNC] Sending move: inCombat={inCombat}, aimAngle={aimAngle:F1}°, arrowFound={_arrowController != null}");
         }
+    }
+
+    private bool HasStateChanged(NetMessageMove msg)
+    {
+        if (_lastSentMove == null)
+            return true;
+
+        bool positionChanged = Vector2.SqrMagnitude(new Vector2(msg.x, msg.y) - new Vector2(_lastSentMove.x, _lastSentMove.y)) > 0.0001f;
+        bool dirChanged = Vector2.SqrMagnitude(new Vector2(msg.dirX, msg.dirY) - new Vector2(_lastSentMove.dirX, _lastSentMove.dirY)) > 0.0001f;
+        bool movingChanged = msg.moving != _lastSentMove.moving;
+        bool aimChanged = Mathf.Abs(msg.aimAngle - _lastSentMove.aimAngle) > 0.01f;
+        bool combatChanged = msg.inCombat != _lastSentMove.inCombat;
+
+        return positionChanged || dirChanged || movingChanged || aimChanged || combatChanged;
     }
 }
