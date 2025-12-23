@@ -176,10 +176,14 @@ public class NpcManager : MonoBehaviour
         else
         {
             var smoother = npc.GetComponent<NetworkNpcSmoother>();
-            if (smoother == null)
-                smoother = npc.AddComponent<NetworkNpcSmoother>();
-
-            smoother.SetTarget(position);
+            if (smoother != null)
+            {
+                smoother.SetTarget(position);
+            }
+            else
+            {
+                npc.transform.position = position;
+            }
         }
 
         var damageable = npc.GetComponent<Damageable>();
@@ -191,6 +195,7 @@ public class NpcManager : MonoBehaviour
     private static void ConfigureNetworkNpc(GameObject npc, string npcId, float hp)
     {
         DisableNpcAI(npc);
+        EnsureNpcSmoother(npc);
 
         var damageable = npc.GetComponent<Damageable>();
         if (damageable != null)
@@ -214,5 +219,11 @@ public class NpcManager : MonoBehaviour
         var attack = npc.GetComponent<EnemyAttack>();
         if (attack != null)
             attack.enabled = false;
+    }
+
+    private static void EnsureNpcSmoother(GameObject npc)
+    {
+        if (npc.GetComponent<NetworkNpcSmoother>() == null)
+            npc.AddComponent<NetworkNpcSmoother>();
     }
 }
