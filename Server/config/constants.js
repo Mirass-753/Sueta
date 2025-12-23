@@ -1,0 +1,39 @@
+const HOST = process.env.HOST || '0.0.0.0';
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const WS_PATH = process.env.WS_PATH || '/game-ws';
+
+const MAX_SPEED = 20;
+
+const DEFAULT_HP = 100;
+const DEFAULT_ENERGY = 100;
+
+const NPC_SPAWN_POINTS = [
+  { id: 'npc-1', x: -5, y: 0 },
+  { id: 'npc-2', x: 5, y: 0 },
+];
+
+const NPC_STATE_BROADCAST_PERIOD_MS = 100;
+
+const ENERGY_SEGMENTS = 10;
+const ENERGY_SEGMENT_VALUE = DEFAULT_ENERGY / ENERGY_SEGMENTS;
+const ENERGY_SEGMENT_PERIOD = 5;
+const ENERGY_EMPTY_EXTRA_DELAY_MIN = 5;
+const ENERGY_EMPTY_EXTRA_DELAY_MAX = 30;
+const ENERGY_REGEN_TICK = 1;
+
+module.exports = {
+  HOST,
+  PORT,
+  WS_PATH,
+  MAX_SPEED,
+  DEFAULT_HP,
+  DEFAULT_ENERGY,
+  NPC_SPAWN_POINTS,
+  NPC_STATE_BROADCAST_PERIOD_MS,
+  ENERGY_SEGMENTS,
+  ENERGY_SEGMENT_VALUE,
+  ENERGY_SEGMENT_PERIOD,
+  ENERGY_EMPTY_EXTRA_DELAY_MIN,
+  ENERGY_EMPTY_EXTRA_DELAY_MAX,
+  ENERGY_REGEN_TICK,
+};
