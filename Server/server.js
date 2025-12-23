@@ -12,6 +12,7 @@ const { startNpcAiLoop } = require('./systems/npcAiSystem');
 const wss = new WebSocket.Server({
   host: config.HOST,
   port: config.PORT,
+  path: config.WS_PATH,
 });
 
 const broadcaster = createBroadcaster(wss);

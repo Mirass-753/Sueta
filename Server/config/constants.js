@@ -1,5 +1,6 @@
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const WS_PATH = process.env.WS_PATH || '/game-ws';
 
 const MAX_SPEED = 20;
 
@@ -23,6 +24,7 @@ const ENERGY_REGEN_TICK = 1;
 module.exports = {
   HOST,
   PORT,
+  WS_PATH,
   MAX_SPEED,
   DEFAULT_HP,
   DEFAULT_ENERGY,
