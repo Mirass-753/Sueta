@@ -12,7 +12,7 @@ const { startNpcAiLoop } = require('./systems/npcAiSystem');
 const wss = new WebSocket.Server({
   host: config.HOST,
   port: config.PORT,
-  path: config.WS_PATH,
+  path: config.WS_PATH, // must stay in sync with Unity client (/game-ws)
 });
 
 const broadcaster = createBroadcaster(wss);
@@ -27,24 +27,50 @@ startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs });
 startNpcBroadcast({ npcs, config, broadcast: broadcaster.broadcast });
 startNpcAiLoop({ npcs, config });
 
+wss.on('connection', (ws, req) => {
+  const url = req?.url || '';
+  const remote = req?.socket?.remoteAddress || 'unknown';
+  console.log(`[WS] client connected url=${url} remote=${remote}`);
+
+  // Отправляем текущий снимок состояния подключившемуся клиенту
   broadcaster.sendSnapshot(ws, { players, stats, npcs, config });
 
-    handlers.onMessage(ws, data);
-    handlers.onDisconnect(ws);
-  console.log(`[WS] Server listening on ws://${config.HOST}:${config.PORT}`);
-        handleItemPickup(ws, msg);
-        break;
-      default:
-        break;
+  // lightweight ping/pong for smoke-test
+  const pingInterval = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
     }
+  }, 30000);
+
+  ws.on('message', (data) => {
+    handlers.onMessage(ws, data);
   });
 
   ws.on('close', () => {
     console.log('[WS] connection closed');
-    handleDisconnect(ws);
+    handlers.onDisconnect(ws);
+    clearInterval(pingInterval);
+  });
+
+  ws.on('pong', () => {
+    // simple heartbeat confirmation
+    console.log('[WS] pong received');
+  });
+
+  ws.on('error', (err) => {
+    console.warn('[WS] connection error', err);
+    clearInterval(pingInterval);
   });
 });
 
+wss.on('error', (err) => {
+  console.error('[WS] server error', err);
+});
+
+wss.on('close', () => {
+  console.log('[WS] server closed');
+});
+
 wss.on('listening', () => {
-  console.log(`[WS] Server listening on ws://${HOST}:${PORT}`);
+  console.log(`[WS] Server listening on ws://${config.HOST}:${config.PORT}${config.WS_PATH}`);
 });

@@ -4,6 +4,11 @@ This server keeps authoritative movement and HP state for the Unity clients.
 Use it together with the Unity project in this repo to test server-side damage
 flow.
 
+## Runtime configuration
+- `HOST` (default `0.0.0.0`)
+- `PORT` (default `3000`)
+- `WS_PATH` (default `/game-ws`) — must match the Unity client endpoint.
+
 ## Setup
 1. Install Node.js 18+.
 2. Install dependencies:
@@ -14,11 +19,23 @@ flow.
    ```bash
    node server.js
    ```
-   The server listens on `ws://127.0.0.1:3000/`.
+   The server listens on `ws://0.0.0.0:3000/game-ws` by default.
 
 To expose it publicly, place it behind a reverse proxy (e.g., nginx) that maps
 `/ws` to this port. Update the Unity client endpoint accordingly if you are not
 using `wss://catlaw.online/ws`.
+
+## Local smoke test
+1. Start the server:
+   ```bash
+   node server.js
+   ```
+   You should see: `Server listening on ws://0.0.0.0:3000/game-ws`.
+2. Connect with `wscat` (install via `npm i -g wscat`):
+   ```bash
+   wscat -c ws://127.0.0.1:3000/game-ws
+   ```
+   On connect the server logs the request `url` and remote address and will emit periodic ping/pong entries.
 
 ## Message flow
 - Clients send `move` and `damage_request` messages.
