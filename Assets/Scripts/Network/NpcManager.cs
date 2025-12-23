@@ -11,23 +11,6 @@ public class NpcManager : MonoBehaviour
     private readonly Dictionary<string, GameObject> _npcs = new Dictionary<string, GameObject>();
     private bool _initialized;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void EnsureExists()
-    {
-        if (Instance != null)
-            return;
-
-        var existing = FindObjectOfType<NpcManager>();
-        if (existing != null)
-        {
-            Instance = existing;
-            return;
-        }
-
-        var go = new GameObject("NpcManager");
-        go.AddComponent<NpcManager>();
-    }
-
     private void Awake()
     {
         if (Instance != null && Instance != this)
