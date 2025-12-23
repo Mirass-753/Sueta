@@ -167,7 +167,20 @@ public class NpcManager : MonoBehaviour
 
     private static void ApplyState(GameObject npc, float x, float y, float hp)
     {
-        npc.transform.position = new Vector3(x, y, npc.transform.position.z);
+        var position = new Vector3(x, y, npc.transform.position.z);
+        var controller = npc.GetComponent<GridEnemyController>();
+        if (controller != null && controller.enabled)
+        {
+            npc.transform.position = position;
+        }
+        else
+        {
+            var smoother = npc.GetComponent<NetworkNpcSmoother>();
+            if (smoother == null)
+                smoother = npc.AddComponent<NetworkNpcSmoother>();
+
+            smoother.SetTarget(position);
+        }
 
         var damageable = npc.GetComponent<Damageable>();
         var health = damageable != null ? damageable.health : npc.GetComponent<HealthSystem>();
