@@ -26,8 +26,8 @@ public class WebSocketClient : MonoBehaviour
 
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
-    [SerializeField] private bool useEditorUrl = true;
-    [SerializeField] private string editorUrl = "ws://176.98.176.64:3001";
+    [SerializeField] private bool useEditorUrl = false;
+    [SerializeField] private string editorUrl = "ws://127.0.0.1:3000";
 #endif
 
     [Header("Queue")]
@@ -37,6 +37,8 @@ public class WebSocketClient : MonoBehaviour
     private WebSocket socket;
     private bool applicationQuitting;
     private bool connecting;
+    private bool everConnected;
+    private bool fallbackToProduction;
 
     // планируемый реконнект
     private bool reconnectScheduled;
@@ -97,10 +99,34 @@ public class WebSocketClient : MonoBehaviour
     private string ResolveUrl()
     {
 #if UNITY_EDITOR
+        if (fallbackToProduction)
+            return productionUrl;
+
         if (useEditorUrl && !string.IsNullOrEmpty(editorUrl))
             return editorUrl;
 #endif
         return productionUrl;
+    }
+
+    private bool IsEditorLocalUrl(string url)
+    {
+#if UNITY_EDITOR
+        if (string.IsNullOrEmpty(url))
+            return false;
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return uri.IsLoopback;
+#endif
+        return false;
+    }
+
+    private void TryFallbackToProduction()
+    {
+#if UNITY_EDITOR
+        fallbackToProduction = true;
+        Debug.LogWarning("[WS] Editor local server unavailable, falling back to production.");
+        ScheduleReconnect(0f);
+#endif
     }
 
     // ---------------- UPDATE ----------------
@@ -177,20 +203,31 @@ public class WebSocketClient : MonoBehaviour
         Debug.Log("[WS] Connecting to: " + url);
         socket = new WebSocket(url);
 
+        bool isEditorLocalUrl = IsEditorLocalUrl(url);
+
         socket.OnOpen += () =>
         {
             Debug.Log("[WS] Connected");
             connecting = false;
+            everConnected = true;
             FlushQueue();
         };
 
         socket.OnError += (e) =>
         {
-            Debug.LogError("[WS] Error: " + e);
+            if (isEditorLocalUrl)
+                Debug.LogWarning("[WS] Error (editor local): " + e);
+            else
+                Debug.LogError("[WS] Error: " + e);
             connecting = false;
 
-            if (!applicationQuitting && autoReconnect)
+            if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
+
+#if UNITY_EDITOR
+            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
+                TryFallbackToProduction();
+#endif
         };
 
         socket.OnClose += (code) =>
@@ -198,8 +235,14 @@ public class WebSocketClient : MonoBehaviour
             Debug.Log("[WS] Closed: " + code);
             connecting = false;
 
-            if (!applicationQuitting && autoReconnect && !closingManually)
+            if (!applicationQuitting && autoReconnect && !closingManually &&
+                !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
+
+#if UNITY_EDITOR
+            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
+                TryFallbackToProduction();
+#endif
         };
 
         socket.OnMessage += (bytes) =>
