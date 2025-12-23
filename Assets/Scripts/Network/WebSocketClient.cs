@@ -26,7 +26,7 @@ public class WebSocketClient : MonoBehaviour
 
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
-    [SerializeField] private bool useEditorUrl = true;
+    [SerializeField] private bool useEditorUrl = false;
     [SerializeField] private string editorUrl = "ws://127.0.0.1:3000";
 #endif
 
@@ -38,6 +38,7 @@ public class WebSocketClient : MonoBehaviour
     private bool applicationQuitting;
     private bool connecting;
     private bool everConnected;
+    private bool fallbackToProduction;
 
     // планируемый реконнект
     private bool reconnectScheduled;
@@ -98,6 +99,9 @@ public class WebSocketClient : MonoBehaviour
     private string ResolveUrl()
     {
 #if UNITY_EDITOR
+        if (fallbackToProduction)
+            return productionUrl;
+
         if (useEditorUrl && !string.IsNullOrEmpty(editorUrl))
             return editorUrl;
 #endif
@@ -114,6 +118,15 @@ public class WebSocketClient : MonoBehaviour
             return uri.IsLoopback;
 #endif
         return false;
+    }
+
+    private void TryFallbackToProduction()
+    {
+#if UNITY_EDITOR
+        fallbackToProduction = true;
+        Debug.LogWarning("[WS] Editor local server unavailable, falling back to production.");
+        ScheduleReconnect(0f);
+#endif
     }
 
     // ---------------- UPDATE ----------------
@@ -210,6 +223,11 @@ public class WebSocketClient : MonoBehaviour
 
             if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
+
+#if UNITY_EDITOR
+            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
+                TryFallbackToProduction();
+#endif
         };
 
         socket.OnClose += (code) =>
@@ -220,6 +238,11 @@ public class WebSocketClient : MonoBehaviour
             if (!applicationQuitting && autoReconnect && !closingManually &&
                 !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
+
+#if UNITY_EDITOR
+            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
+                TryFallbackToProduction();
+#endif
         };
 
         socket.OnMessage += (bytes) =>
