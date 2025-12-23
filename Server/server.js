@@ -27,24 +27,34 @@ startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs });
 startNpcBroadcast({ npcs, config, broadcast: broadcaster.broadcast });
 startNpcAiLoop({ npcs, config });
 
+wss.on('connection', (ws) => {
+  console.log('[WS] client connected');
+
+  // Отправляем текущий снимок состояния подключившемуся клиенту
   broadcaster.sendSnapshot(ws, { players, stats, npcs, config });
 
+  ws.on('message', (data) => {
     handlers.onMessage(ws, data);
-    handlers.onDisconnect(ws);
-  console.log(`[WS] Server listening on ws://${config.HOST}:${config.PORT}`);
-        handleItemPickup(ws, msg);
-        break;
-      default:
-        break;
-    }
   });
 
   ws.on('close', () => {
     console.log('[WS] connection closed');
-    handleDisconnect(ws);
+    handlers.onDisconnect(ws);
+  });
+
+  ws.on('error', (err) => {
+    console.warn('[WS] connection error', err);
   });
 });
 
+wss.on('error', (err) => {
+  console.error('[WS] server error', err);
+});
+
+wss.on('close', () => {
+  console.log('[WS] server closed');
+});
+
 wss.on('listening', () => {
-  console.log(`[WS] Server listening on ws://${HOST}:${PORT}`);
+  console.log(`[WS] Server listening on ws://${config.HOST}:${config.PORT}${config.WS_PATH}`);
 });
