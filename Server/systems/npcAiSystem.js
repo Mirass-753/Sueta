@@ -234,10 +234,14 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
 
   switch (meta.state) {
     case 'Idle':
-      if (patrolCells.length > 0) {
-        changeState(meta, 'Patrol', now);
-      }
-      break;
+  // если игрок рядом — начинаем преследование даже без patrolCells
+  if (hasPlayer && distanceToPlayer <= config.NPC_AGGRO_RANGE) {
+    changeState(meta, 'Chase', now);
+  } else if (patrolCells.length > 0) {
+    changeState(meta, 'Patrol', now);
+  }
+  break;
+
     case 'Patrol':
       if (hasPlayer && distanceToPlayer <= config.NPC_AGGRO_RANGE) {
         changeState(meta, 'Chase', now);

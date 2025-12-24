@@ -6,8 +6,10 @@ using UnityEngine;
 using NativeWebSocket;
 
 /// <summary>
-/// Минимальный и безопасный клиент вебсокета для WebGL.
-/// Без рекурсивных вызовов Connect() из OnClose/OnError.
+/// Минимальный и безопасный WebSocket клиент для Unity (Editor/WebGL).
+/// - Таймаут коннекта ждёт именно OnOpen (а не завершение socket.Connect())
+/// - Без рекурсивных Connect() из OnClose/OnError
+/// - Очередь исходящих сообщений до соединения
 /// </summary>
 public class WebSocketClient : MonoBehaviour
 {
@@ -16,18 +18,23 @@ public class WebSocketClient : MonoBehaviour
     [Header("Connection")]
     [SerializeField] private bool autoConnect = true;
     [SerializeField] private bool autoReconnect = true;
+
+    [SerializeField, Range(1f, 30f)]
+    private float connectTimeoutSeconds = 8f;
+
     [SerializeField, Range(0.5f, 10f)]
     private float reconnectDelaySeconds = 2f;
 
     [Header("URLs")]
     [Tooltip("Production WebSocket endpoint")]
-    [SerializeField]
-    private string productionUrl = "wss://catlaw.online/game-ws";
+    [SerializeField] private string productionUrl = "wss://catlaw.online/game-ws";
 
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
     [SerializeField] private bool useEditorUrl = true;
-    [SerializeField] private string editorUrl = "ws://127.0.0.1:3000";
+
+    [Tooltip("Локальный WS endpoint в редакторе")]
+    [SerializeField] private string editorUrl = "ws://127.0.0.1:3000/game-ws";
 #endif
 
     [Header("Queue")]
@@ -35,6 +42,7 @@ public class WebSocketClient : MonoBehaviour
     private int queuedMessageLimit = 64;
 
     private WebSocket socket;
+
     private bool applicationQuitting;
     private bool connecting;
     private bool everConnected;
@@ -49,9 +57,7 @@ public class WebSocketClient : MonoBehaviour
     // очередь исходящих пока нет соединения
     private readonly Queue<string> outgoingQueue = new Queue<string>();
 
-    // ---------------- SINGLETON ----------------
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    public bool IsConnected => socket != null && socket.State == WebSocketState.Open;
 
     private void Awake()
     {
@@ -71,11 +77,6 @@ public class WebSocketClient : MonoBehaviour
     private void OnEnable()
     {
         applicationQuitting = false;
-    }
-
-    private void OnDisable()
-    {
-        // не делаем ничего особенного
     }
 
     // ---------------- URL ----------------
@@ -121,9 +122,6 @@ public class WebSocketClient : MonoBehaviour
 
     // ---------------- ПОДКЛЮЧЕНИЕ ----------------
 
-    /// <summary>
-    /// Явно попросить подключиться / переподключиться.
-    /// </summary>
     public void Connect()
     {
         ScheduleReconnect(0f);
@@ -153,6 +151,8 @@ public class WebSocketClient : MonoBehaviour
             return;
         }
 
+        bool isEditorLocalUrl = IsEditorLocalUrl(url);
+
         // Закрываем старый сокет, если был
         if (socket != null)
         {
@@ -163,7 +163,7 @@ public class WebSocketClient : MonoBehaviour
             }
             catch (Exception ex)
             {
-                Debug.LogWarning("[WS] Error while closing old socket: " + ex);
+                Debug.LogWarning("[WS] Error while closing old socket: " + ex.Message);
             }
             finally
             {
@@ -173,15 +173,21 @@ public class WebSocketClient : MonoBehaviour
         }
 
         Debug.Log("[WS] Connecting to: " + url);
+
         socket = new WebSocket(url);
 
-        bool isEditorLocalUrl = IsEditorLocalUrl(url);
+        // Важно: ждём OnOpen, а не завершение socket.Connect()
+        var openTcs = new TaskCompletionSource<bool>();
 
+        // Подписки на события (NativeWebSocket типы делегатов!)
         socket.OnOpen += () =>
         {
             Debug.Log("[WS] Connected");
             connecting = false;
             everConnected = true;
+
+            openTcs.TrySetResult(true);
+
             FlushQueue();
         };
 
@@ -191,7 +197,12 @@ public class WebSocketClient : MonoBehaviour
                 Debug.LogWarning("[WS] Error (editor local): " + e);
             else
                 Debug.LogError("[WS] Error: " + e);
+
             connecting = false;
+
+            // если мы ещё ждали открытия — завершаем ожидание с ошибкой
+            if (!openTcs.Task.IsCompleted)
+                openTcs.TrySetException(new Exception("WS error: " + e));
 
             if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
@@ -202,9 +213,15 @@ public class WebSocketClient : MonoBehaviour
             Debug.Log("[WS] Closed: " + code);
             connecting = false;
 
+            // если закрылись до открытия — считаем это ошибкой открытия
+            if (!openTcs.Task.IsCompleted)
+                openTcs.TrySetException(new Exception("WS closed before open. Code=" + code));
+
             if (!applicationQuitting && autoReconnect && !closingManually &&
                 !(isEditorLocalUrl && !everConnected))
+            {
                 ScheduleReconnect(reconnectDelaySeconds);
+            }
         };
 
         socket.OnMessage += (bytes) =>
@@ -221,35 +238,51 @@ public class WebSocketClient : MonoBehaviour
         };
 
         try
-{
-    Debug.Log("[WS] Connect() start, url=" + url);
+        {
+            Debug.Log("[WS] Connect() start, url=" + url);
 
-    var connectTask = socket.Connect();
-    var finished = await Task.WhenAny(connectTask, Task.Delay(8000));
+            // Не await: на некоторых платформах Task может не завершаться,
+            // хотя OnOpen уже пришёл.
+            _ = socket.Connect();
 
-    if (finished != connectTask)
-    {
-        Debug.LogError("[WS] Connect timeout (8s). Check server/proxy/path.");
-        connecting = false;
+            var finished = await Task.WhenAny(openTcs.Task, Task.Delay(TimeSpan.FromSeconds(connectTimeoutSeconds)));
+            if (finished != openTcs.Task)
+            {
+                Debug.LogError($"[WS] Open timeout ({connectTimeoutSeconds:0.#}s). Check server/proxy/path.");
+                connecting = false;
 
-        if (!applicationQuitting && autoReconnect)
-            ScheduleReconnect(reconnectDelaySeconds);
+                // Закрываем сокет вручную без автопереподключения из OnClose
+                try
+                {
+                    closingManually = true;
+                    await socket.Close();
+                }
+                catch { /* ignore */ }
+                finally
+                {
+                    closingManually = false;
+                    socket = null;
+                }
 
-        return;
-    }
+                if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
+                    ScheduleReconnect(reconnectDelaySeconds);
 
-    await connectTask; // чтобы пробросить исключение, если оно было
-    Debug.Log("[WS] Connect() finished. State=" + socket.State);
-}
-catch (Exception ex)
-{
-    Debug.LogError("[WS] Connect exception: " + ex);
-    connecting = false;
+                return;
+            }
 
-    if (!applicationQuitting && autoReconnect)
-        ScheduleReconnect(reconnectDelaySeconds);
-}
+            // Если openTcs завершился ошибкой — пробросим
+            await openTcs.Task;
 
+            Debug.Log("[WS] Open confirmed. State=" + (socket != null ? socket.State.ToString() : "null"));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("[WS] Connect exception: " + ex);
+            connecting = false;
+
+            if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
+                ScheduleReconnect(reconnectDelaySeconds);
+        }
     }
 
     // ---------------- ОТПРАВКА ----------------
@@ -262,6 +295,7 @@ catch (Exception ex)
         if (socket == null || socket.State != WebSocketState.Open)
         {
             EnqueueWhileDisconnected(message);
+
             if (!connecting && !applicationQuitting)
                 ScheduleReconnect(0f);
 
@@ -288,7 +322,6 @@ catch (Exception ex)
         if (!connecting && !applicationQuitting)
             ScheduleReconnect(0f);
 
-        // маленький Yield чтобы не забивать кадр
         await Task.Yield();
     }
 

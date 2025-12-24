@@ -2059,8 +2059,8 @@ MonoBehaviour:
   autoReconnect: 1
   reconnectDelaySeconds: 2
   productionUrl: wss://catlaw.online/game-ws
-  useEditorUrl: 1
-  editorUrl: ws://127.0.0.1:3000
+  useEditorUrl: 0
+  editorUrl: 'ws://127.0.0.1:3000/game-ws '
   queuedMessageLimit: 64
 --- !u!114 &975965081
 MonoBehaviour:

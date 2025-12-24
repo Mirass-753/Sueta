@@ -601,14 +601,13 @@ GameObject:
   m_Component:
   - component: {fileID: 6553274317036825152}
   - component: {fileID: 1123078804290828135}
-  - component: {fileID: 3846101512363335092}
-  - component: {fileID: 1073605374449833362}
   - component: {fileID: 7501432689108057603}
   - component: {fileID: 7720198882530483145}
   - component: {fileID: 5707024084010904105}
   - component: {fileID: 2520849372976974371}
   - component: {fileID: 4938590771689344126}
   - component: {fileID: 7011548273541961241}
+  - component: {fileID: 2168836245839989454}
   m_Layer: 13
   m_Name: Enemy
   m_TagString: Untagged
@@ -686,58 +685,6 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &3846101512363335092
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d150b60287ef99144b9cf2bd5d886706, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gridSize: 1
-  cellCenterOffset: {x: 0.5, y: 0.5}
-  moveDuration: 0.2
-  sense: {fileID: 1073605374449833362}
-  aggroRange: 4
-  loseRange: 6
-  memoryDuration: 3
-  attack: {fileID: 4938590771689344126}
-  arrow: {fileID: 4374498125055188505}
-  attackRange: 1.5
-  attackCooldownAfterMove: 0.3
-  retreatHealthThreshold: 0.3
-  retreatDistance: 3
-  retreatChance: 0.7
-  predictionTime: 0.5
-  obstacleAvoidanceRange: 1.5
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 0
-  patrolCells:
-  - {x: 0, y: 0}
-  - {x: 3, y: 0}
-  - {x: 3, y: 2}
-  - {x: 0, y: 2}
-  loopPatrol: 1
-  patrolWaitTime: 1
-  occupancyManager: {fileID: 0}
---- !u!114 &1073605374449833362
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 04f24a723fcafc644ab532531bca0419, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  player: {fileID: 0}
 --- !u!114 &7501432689108057603
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -759,7 +706,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 61c2f74b8bd888e489e04596b8b06455, type: 3}
   m_Name: 
@@ -800,15 +747,15 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: efe6db9a5b7a5284dbc171afa92066df, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   health: {fileID: 7501432689108057603}
   disableOnDeath:
-  - {fileID: 3846101512363335092}
-  - {fileID: 1073605374449833362}
+  - {fileID: 0}
+  - {fileID: 0}
   - {fileID: 7720198882530483145}
   destroyDelay: 1.5
 --- !u!61 &2520849372976974371
@@ -818,7 +765,7 @@ BoxCollider2D:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Density: 1
   m_Material: {fileID: 0}
   m_IncludeLayers:
@@ -863,7 +810,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3751427032538318925}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e7486c89d41c9ce4d8095ecfa68d1a89, type: 3}
   m_Name: 
@@ -899,6 +846,20 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!114 &2168836245839989454
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3751427032538318925}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99359c9eb235401296f105cf77460af7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveDuration: 0.2
+  snapDistance: 2
 --- !u!1 &5775383173345589629
 GameObject:
   m_ObjectHideFlags: 0
