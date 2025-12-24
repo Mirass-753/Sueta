@@ -26,7 +26,7 @@ public class WebSocketClient : MonoBehaviour
 
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
-    [SerializeField] private bool useEditorUrl = false;
+    [SerializeField] private bool useEditorUrl = true;
     [SerializeField] private string editorUrl = "ws://127.0.0.1:3000";
 #endif
 
@@ -38,7 +38,6 @@ public class WebSocketClient : MonoBehaviour
     private bool applicationQuitting;
     private bool connecting;
     private bool everConnected;
-    private bool fallbackToProduction;
 
     // планируемый реконнект
     private bool reconnectScheduled;
@@ -53,21 +52,6 @@ public class WebSocketClient : MonoBehaviour
     // ---------------- SINGLETON ----------------
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void EnsureInstanceExists()
-    {
-        if (Instance != null)
-            return;
-
-        var existing = FindObjectOfType<WebSocketClient>();
-        if (existing != null)
-        {
-            Instance = existing;
-            return;
-        }
-
-        var go = new GameObject("WebSocketClient");
-        go.AddComponent<WebSocketClient>();
-    }
 
     private void Awake()
     {
@@ -99,9 +83,6 @@ public class WebSocketClient : MonoBehaviour
     private string ResolveUrl()
     {
 #if UNITY_EDITOR
-        if (fallbackToProduction)
-            return productionUrl;
-
         if (useEditorUrl && !string.IsNullOrEmpty(editorUrl))
             return editorUrl;
 #endif
@@ -118,15 +99,6 @@ public class WebSocketClient : MonoBehaviour
             return uri.IsLoopback;
 #endif
         return false;
-    }
-
-    private void TryFallbackToProduction()
-    {
-#if UNITY_EDITOR
-        fallbackToProduction = true;
-        Debug.LogWarning("[WS] Editor local server unavailable, falling back to production.");
-        ScheduleReconnect(0f);
-#endif
     }
 
     // ---------------- UPDATE ----------------
@@ -223,11 +195,6 @@ public class WebSocketClient : MonoBehaviour
 
             if (!applicationQuitting && autoReconnect && !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
-
-#if UNITY_EDITOR
-            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
-                TryFallbackToProduction();
-#endif
         };
 
         socket.OnClose += (code) =>
@@ -238,11 +205,6 @@ public class WebSocketClient : MonoBehaviour
             if (!applicationQuitting && autoReconnect && !closingManually &&
                 !(isEditorLocalUrl && !everConnected))
                 ScheduleReconnect(reconnectDelaySeconds);
-
-#if UNITY_EDITOR
-            if (isEditorLocalUrl && !everConnected && !fallbackToProduction)
-                TryFallbackToProduction();
-#endif
         };
 
         socket.OnMessage += (bytes) =>
@@ -259,17 +221,35 @@ public class WebSocketClient : MonoBehaviour
         };
 
         try
-        {
-            await socket.Connect();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("[WS] Connect exception: " + ex);
-            connecting = false;
+{
+    Debug.Log("[WS] Connect() start, url=" + url);
 
-            if (!applicationQuitting && autoReconnect)
-                ScheduleReconnect(reconnectDelaySeconds);
-        }
+    var connectTask = socket.Connect();
+    var finished = await Task.WhenAny(connectTask, Task.Delay(8000));
+
+    if (finished != connectTask)
+    {
+        Debug.LogError("[WS] Connect timeout (8s). Check server/proxy/path.");
+        connecting = false;
+
+        if (!applicationQuitting && autoReconnect)
+            ScheduleReconnect(reconnectDelaySeconds);
+
+        return;
+    }
+
+    await connectTask; // чтобы пробросить исключение, если оно было
+    Debug.Log("[WS] Connect() finished. State=" + socket.State);
+}
+catch (Exception ex)
+{
+    Debug.LogError("[WS] Connect exception: " + ex);
+    connecting = false;
+
+    if (!applicationQuitting && autoReconnect)
+        ScheduleReconnect(reconnectDelaySeconds);
+}
+
     }
 
     // ---------------- ОТПРАВКА ----------------
