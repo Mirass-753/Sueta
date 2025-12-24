@@ -18,6 +18,7 @@ function createBroadcaster(wss) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     for (const [npcId, npc] of npcs.entries()) {
+      const meta = npcs.getNpcMeta ? npcs.getNpcMeta(npcId) : null;
       const payload = {
         type: 'npc_spawn',
         npcId,
@@ -25,6 +26,14 @@ function createBroadcaster(wss) {
         y: npc.y,
         hp: npc.hp,
       };
+
+      if (meta) {
+        payload.state = meta.state;
+        payload.targetId = meta.targetPlayerId || null;
+        payload.dirX = meta.dirX || 0;
+        payload.dirY = meta.dirY || 0;
+        payload.moving = !!meta.moving;
+      }
 
       try {
         ws.send(JSON.stringify(payload));

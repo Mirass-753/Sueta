@@ -8,9 +8,12 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
 
     let x = msg.x;
     let y = msg.y;
+    let vx = 0;
+    let vy = 0;
+    let dt = 1 / 60;
 
     if (prev) {
-      const dt = Math.max(now - prev.t, 1 / 60);
+      dt = Math.max(now - prev.t, 1 / 60);
       const dx = x - prev.x;
       const dy = y - prev.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -30,6 +33,11 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
       }
     }
 
+    if (prev) {
+      vx = (x - prev.x) / dt;
+      vy = (y - prev.y) / dt;
+    }
+
     ws.playerId = ws.playerId || msg.id;
 
     stats.getHp(msg.id);
@@ -38,6 +46,8 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
     players.setPlayer(msg.id, {
       x,
       y,
+      vx,
+      vy,
       dirX: typeof msg.dirX === 'number' ? msg.dirX : 0,
       dirY: typeof msg.dirY === 'number' ? msg.dirY : 0,
       moving: !!msg.moving,

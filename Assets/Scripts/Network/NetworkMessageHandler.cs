@@ -66,6 +66,7 @@ public static class NetworkMessageHandler
             case "prey_kill":     HandlePreyKill(json);     break;
             case "npc_spawn":     HandleNpcSpawn(json);     break;
             case "npc_state":     HandleNpcState(json);     break;
+            case "npc_attack":    HandleNpcAttack(json);    break;
             case "npc_despawn":   HandleNpcDespawn(json);   break;
             default:
                 // неизвестные типы просто игнорируем
@@ -166,6 +167,8 @@ public static class NetworkMessageHandler
         }
 
         target.health.SetCurrentHpFromServer(msg.hp);
+
+        NpcManager.Instance?.OnNpcDamage(msg.targetId, msg.hp);
     }
 
     // ================== ПОПАП УРОНА ==================
@@ -558,6 +561,25 @@ public static class NetworkMessageHandler
             return;
 
         NpcManager.Instance?.OnNpcDespawn(msg);
+    }
+
+    private static void HandleNpcAttack(string json)
+    {
+        NetMessageNpcAttack msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageNpcAttack>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить npc_attack: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.npcId))
+            return;
+
+        NpcManager.Instance?.OnNpcAttack(msg);
     }
 
     // ================== DISCONNECT ==================

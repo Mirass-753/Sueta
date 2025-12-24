@@ -102,7 +102,7 @@ public class NpcManager : MonoBehaviour
 
         if (_npcs.TryGetValue(msg.npcId, out var existing) && existing != null)
         {
-            ApplyState(existing, msg.x, msg.y, msg.hp);
+            ApplyState(existing, msg.x, msg.y, msg.hp, msg.state, msg.dirX, msg.dirY, msg.moving);
             return;
         }
 
@@ -116,6 +116,7 @@ public class NpcManager : MonoBehaviour
         instance.name = $"NPC_{msg.npcId}";
 
         ConfigureNetworkNpc(instance, msg.npcId, msg.hp);
+        ApplyState(instance, msg.x, msg.y, msg.hp, msg.state, msg.dirX, msg.dirY, msg.moving);
         _npcs[msg.npcId] = instance;
     }
 
@@ -126,7 +127,7 @@ public class NpcManager : MonoBehaviour
 
         if (_npcs.TryGetValue(msg.npcId, out var npc) && npc != null)
         {
-            ApplyState(npc, msg.x, msg.y, msg.hp);
+            ApplyState(npc, msg.x, msg.y, msg.hp, msg.state, msg.dirX, msg.dirY, msg.moving);
         }
         else
         {
@@ -136,7 +137,11 @@ public class NpcManager : MonoBehaviour
                 npcId = msg.npcId,
                 x = msg.x,
                 y = msg.y,
-                hp = msg.hp
+                hp = msg.hp,
+                state = msg.state,
+                dirX = msg.dirX,
+                dirY = msg.dirY,
+                moving = msg.moving
             });
         }
     }
@@ -154,6 +159,42 @@ public class NpcManager : MonoBehaviour
         _npcs.Remove(msg.npcId);
     }
 
+    public void OnNpcAttack(NetMessageNpcAttack msg)
+    {
+        if (msg == null || string.IsNullOrEmpty(msg.npcId))
+            return;
+
+        if (_npcs.TryGetValue(msg.npcId, out var npc) && npc != null)
+        {
+            var controller = npc.GetComponent<RemoteNpcController>();
+            if (controller != null)
+            {
+                controller.PlayAttack(new Vector2(msg.dirX, msg.dirY));
+            }
+        }
+    }
+
+    public void OnNpcDamage(string npcId, float hp)
+    {
+        if (string.IsNullOrEmpty(npcId))
+            return;
+
+        if (_npcs.TryGetValue(npcId, out var npc) && npc != null)
+        {
+            var controller = npc.GetComponent<RemoteNpcController>();
+            if (controller != null)
+            {
+                controller.ApplyState(npc.transform.position, hp, controller.State, Vector2.zero, false);
+            }
+
+            if (hp <= 0f)
+            {
+                Destroy(npc);
+                _npcs.Remove(npcId);
+            }
+        }
+    }
+
     public void ClearAll()
     {
         foreach (var kv in _npcs)
@@ -165,26 +206,14 @@ public class NpcManager : MonoBehaviour
         _npcs.Clear();
     }
 
-    private static void ApplyState(GameObject npc, float x, float y, float hp)
+    private static void ApplyState(GameObject npc, float x, float y, float hp, string state, float dirX, float dirY, bool moving)
     {
         var position = new Vector3(x, y, npc.transform.position.z);
-        var controller = npc.GetComponent<GridEnemyController>();
-        if (controller != null && controller.enabled)
-        {
-            npc.transform.position = position;
-        }
+        var remote = npc.GetComponent<RemoteNpcController>();
+        if (remote != null)
+            remote.ApplyState(position, hp, state, new Vector2(dirX, dirY), moving);
         else
-        {
-            var smoother = npc.GetComponent<NetworkNpcSmoother>();
-            if (smoother != null)
-            {
-                smoother.SetTarget(position);
-            }
-            else
-            {
-                npc.transform.position = position;
-            }
-        }
+            npc.transform.position = position;
 
         var damageable = npc.GetComponent<Damageable>();
         var health = damageable != null ? damageable.health : npc.GetComponent<HealthSystem>();
@@ -195,7 +224,7 @@ public class NpcManager : MonoBehaviour
     private static void ConfigureNetworkNpc(GameObject npc, string npcId, float hp)
     {
         DisableNpcAI(npc);
-        EnsureNpcSmoother(npc);
+        EnsureRemoteController(npc, npcId, hp);
 
         var damageable = npc.GetComponent<Damageable>();
         if (damageable != null)
@@ -215,15 +244,14 @@ public class NpcManager : MonoBehaviour
         var sense = npc.GetComponent<EnemySense>();
         if (sense != null)
             sense.enabled = false;
-
-        var attack = npc.GetComponent<EnemyAttack>();
-        if (attack != null)
-            attack.enabled = false;
     }
 
-    private static void EnsureNpcSmoother(GameObject npc)
+    private static void EnsureRemoteController(GameObject npc, string npcId, float hp)
     {
-        if (npc.GetComponent<NetworkNpcSmoother>() == null)
-            npc.AddComponent<NetworkNpcSmoother>();
+        var remote = npc.GetComponent<RemoteNpcController>();
+        if (remote == null)
+            remote = npc.AddComponent<RemoteNpcController>();
+
+        remote.Initialize(npcId, hp);
     }
 }
