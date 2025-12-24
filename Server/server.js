@@ -25,7 +25,7 @@ const handlers = createHandlers({
 });
 startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs });
 startNpcBroadcast({ npcs, config, broadcast: broadcaster.broadcast });
-startNpcAiLoop({ npcs, config });
+startNpcAiLoop({ npcs, players, stats, config, broadcast: broadcaster.broadcast });
 
 wss.on('connection', (ws, req) => {
   const url = req?.url || '';
