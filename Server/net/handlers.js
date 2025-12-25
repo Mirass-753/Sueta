@@ -1,9 +1,21 @@
 function createHandlers({ players, npcs, stats, config, broadcast }) {
+  const debugAi = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
+    || process.env.DEBUG_AI === '1';
+  const lastMoveLogAt = new Map();
+
   function handleMove(ws, msg) {
     if (typeof msg.id !== 'string') return;
     if (typeof msg.x !== 'number' || typeof msg.y !== 'number') return;
 
     const now = Date.now() / 1000;
+    if (debugAi) {
+      const nowMs = Date.now();
+      const lastLog = lastMoveLogAt.get(msg.id) || 0;
+      if (nowMs - lastLog >= 1000) {
+        console.log('[WS] move', msg.id, msg.x, msg.y);
+        lastMoveLogAt.set(msg.id, nowMs);
+      }
+    }
     const prev = players.getPlayer(msg.id);
 
     let x = msg.x;

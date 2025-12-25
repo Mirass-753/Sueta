@@ -14,6 +14,7 @@ using NativeWebSocket;
 public class WebSocketClient : MonoBehaviour
 {
     public static WebSocketClient Instance { get; private set; }
+    public event Action OnConnected;
 
     [Header("Connection")]
     [SerializeField] private bool autoConnect = true;
@@ -58,6 +59,7 @@ public class WebSocketClient : MonoBehaviour
     private readonly Queue<string> outgoingQueue = new Queue<string>();
 
     public bool IsConnected => socket != null && socket.State == WebSocketState.Open;
+    public bool IsOpen => socket != null && socket.State == WebSocketState.Open;
 
     private void Awake()
     {
@@ -189,6 +191,7 @@ public class WebSocketClient : MonoBehaviour
             openTcs.TrySetResult(true);
 
             FlushQueue();
+            OnConnected?.Invoke();
         };
 
         socket.OnError += (e) =>
