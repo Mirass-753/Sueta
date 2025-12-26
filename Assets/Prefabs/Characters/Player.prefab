@@ -503,7 +503,6 @@ GameObject:
   - component: {fileID: 728643132065895907}
   - component: {fileID: 7151247647470076974}
   - component: {fileID: 6878728461530271447}
-  - component: {fileID: 2801394439536689568}
   - component: {fileID: 1330285521281924109}
   - component: {fileID: 861190202924860658}
   - component: {fileID: 7154962461040147139}
@@ -626,7 +625,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 0.6483254}
+    oldSize: {x: 1.1942858, y: 0.77428573}
     newSize: {x: 1, y: 0.6483254}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -635,29 +634,6 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 3.33, y: 3.33}
   m_EdgeRadius: 0
---- !u!114 &2801394439536689568
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3843565613059005740}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f08f151250c0ff448a46cdbb4bf5ef12, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gridSize: 1
-  moveDuration: 0.33
-  continuousMoveDelay: 0
-  idleSprite: {fileID: 7349830768230865535, guid: f7d0e16512f08944b87729e894ab28fd, type: 3}
-  movingSprite: {fileID: 21300000, guid: 0a2bc64995bc6034f8334384b2117918, type: 3}
-  cellCenterOffset: {x: 0.5, y: 0.5}
-  occupancyManager: {fileID: 0}
-  bodyCollider: {fileID: 0}
-  playerLayer:
-    serializedVersion: 2
-    m_Bits: 8
 --- !u!114 &1330285521281924109
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -729,7 +705,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f7fe041878706a448bcbae124d78df4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerController: {fileID: 2801394439536689568}
+  playerController: {fileID: 0}
   arrowController: {fileID: 9203260134766357428}
   energySystem: {fileID: 0}
   cameraController: {fileID: 0}
@@ -745,6 +721,7 @@ MonoBehaviour:
   combatSpeedMultiplier: 1.6
   gridSize: 1
   cellCenterOffset: {x: 0.5, y: 0.5}
+  inputBufferSeconds: 0.25
   toggleCombatKey: 114
   attackKey: 105
   blockKey: 107
@@ -779,6 +756,13 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  bodyCollider: {fileID: 0}
+  playerLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  environmentLayer:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!114 &7401051496187098216
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -809,6 +793,8 @@ MonoBehaviour:
   regenInCombatPerSec: 5
   regenOutCombatPerSec: 10
   selfDamagePercent: 0.01
+  _currentEnergy: 0
+  _serverAuthoritative: 0
 --- !u!114 &3283014668577346591
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -822,6 +808,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sendInterval: 0.1
+  heartbeatInterval: 5
+  aimAngleSendThresholdDeg: 1.5
+  minAimSendInterval: 0.05
 --- !u!114 &8812345678901234567
 MonoBehaviour:
   m_ObjectHideFlags: 0
