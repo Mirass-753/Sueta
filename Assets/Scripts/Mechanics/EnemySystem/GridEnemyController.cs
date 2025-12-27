@@ -581,8 +581,12 @@ public class GridEnemyController : MonoBehaviour
     {
         int dx = targetCell.x - _currentCell.x;
         int dy = targetCell.y - _currentCell.y;
-        int sx = dx == 0 ? 0 : (dx > 0 ? 1 : -1);
-        int sy = dy == 0 ? 0 : (dy > 0 ? 1 : -1);
+        if (dx == 0 && dy == 0)
+            return _currentCell;
+
+        bool moveOnX = Mathf.Abs(dx) >= Mathf.Abs(dy);
+        int sx = moveOnX ? (dx > 0 ? 1 : -1) : 0;
+        int sy = moveOnX ? 0 : (dy > 0 ? 1 : -1);
         return new Vector2Int(_currentCell.x + sx, _currentCell.y + sy);
     }
 
