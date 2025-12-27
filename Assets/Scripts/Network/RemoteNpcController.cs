@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class RemoteNpcController : MonoBehaviour
@@ -36,6 +37,9 @@ public class RemoteNpcController : MonoBehaviour
     private bool _isMoving;
     private bool _hasPendingMove;
     private Coroutine _moveRoutine;
+    private readonly Queue<Vector2Int> _moveQueue = new Queue<Vector2Int>();
+    private bool _pendingRebuild;
+    private bool _skipDelayUntilSynced;
 
     private EnemyAttack _attack;
     private ArrowController _arrow;
@@ -141,11 +145,11 @@ public class RemoteNpcController : MonoBehaviour
 
         if (force)
         {
-            _currentCell = desired;
-            transform.position = CellToWorld(_currentCell);
+            _skipDelayUntilSynced = true;
         }
 
         _hasDesiredCell = true;
+        _pendingRebuild = true;
         if (_isMoving)
         {
             _hasPendingMove = true;
@@ -160,7 +164,10 @@ public class RemoteNpcController : MonoBehaviour
         if (_isMoving || !_hasDesiredCell)
             return;
 
-        if (_currentCell == _desiredCell)
+        if (_pendingRebuild)
+            RebuildMoveQueue();
+
+        if (_moveQueue.Count == 0)
             return;
 
         if (_moveRoutine != null)
@@ -173,7 +180,17 @@ public class RemoteNpcController : MonoBehaviour
     {
         _isMoving = true;
 
-        Vector2Int nextCell = StepTowards(_currentCell, _desiredCell);
+        if (_pendingRebuild)
+            RebuildMoveQueue();
+
+        if (_moveQueue.Count == 0)
+        {
+            _isMoving = false;
+            _moveRoutine = null;
+            yield break;
+        }
+
+        Vector2Int nextCell = _moveQueue.Dequeue();
         Vector2 targetPos = CellToWorld(nextCell);
 
         float elapsed = 0f;
@@ -198,7 +215,7 @@ public class RemoteNpcController : MonoBehaviour
         }
 
         Vector2Int step = nextCell - _currentCell;
-        float delay = ComputeDelay(step);
+        float delay = _skipDelayUntilSynced ? 0f : ComputeDelay(step);
         _currentCell = nextCell;
 
         if (delay > 0f)
@@ -207,13 +224,33 @@ public class RemoteNpcController : MonoBehaviour
         _isMoving = false;
         _moveRoutine = null;
 
-        if (_currentCell != _desiredCell)
+        if (_currentCell == _desiredCell)
+            _skipDelayUntilSynced = false;
+
+        if (_moveQueue.Count > 0)
         {
-            if (_hasPendingMove)
-            {
-                _hasPendingMove = false;
-                TryStartMove();
-            }
+            TryStartMove();
+            yield break;
+        }
+
+        if (_hasPendingMove)
+        {
+            _hasPendingMove = false;
+            TryStartMove();
+        }
+    }
+
+    private void RebuildMoveQueue()
+    {
+        _moveQueue.Clear();
+        _pendingRebuild = false;
+
+        Vector2Int cursor = _currentCell;
+        int maxSteps = Mathf.Abs(_desiredCell.x - _currentCell.x) + Mathf.Abs(_desiredCell.y - _currentCell.y);
+        for (int i = 0; i < maxSteps && cursor != _desiredCell; i++)
+        {
+            cursor = StepTowards(cursor, _desiredCell);
+            _moveQueue.Enqueue(cursor);
         }
     }
 
