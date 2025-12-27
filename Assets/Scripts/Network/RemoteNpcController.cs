@@ -46,7 +46,7 @@ public class RemoteNpcController : MonoBehaviour
     private void Awake()
     {
         _attack = GetComponent<EnemyAttack>();
-        _arrow = GetComponent<ArrowController>();
+        _arrow = GetComponentInChildren<ArrowController>(true);
         var gridController = GetComponent<GridEnemyController>();
         if (gridController != null)
         {
