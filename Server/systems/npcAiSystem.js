@@ -432,7 +432,20 @@ function decideChaseStep({
   if (!player) return null;
 
   const predicted = predictPlayerPosition(player, config);
-  const targetCell = worldToCell(predicted.x, predicted.y, config);
+  let targetCell = worldToCell(predicted.x, predicted.y, config);
+  const npcWorld = cellToWorld(currentCell, config);
+  const snapThreshold = config.GRID_SIZE * 0.25;
+  const closeX = Math.abs(player.x - npcWorld.x) <= snapThreshold;
+  const closeY = Math.abs(player.y - npcWorld.y) <= snapThreshold;
+
+  if (closeX !== closeY) {
+    if (closeX) {
+      targetCell = { x: currentCell.x, y: targetCell.y };
+    }
+    if (closeY) {
+      targetCell = { x: targetCell.x, y: currentCell.y };
+    }
+  }
 
   if (distanceToPlayer <= config.NPC_ATTACK_RANGE) {
     const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
@@ -606,8 +619,23 @@ function cellToWorld(cell, config) {
 }
 
 function predictPlayerPosition(player, config) {
-  const vx = typeof player.vx === 'number' ? player.vx : 0;
-  const vy = typeof player.vy === 'number' ? player.vy : 0;
+  let vx = typeof player.vx === 'number' ? player.vx : 0;
+  let vy = typeof player.vy === 'number' ? player.vy : 0;
+  const absVx = Math.abs(vx);
+  const absVy = Math.abs(vy);
+
+  if (absVx > 0 && absVy > 0) {
+    const ratio = Math.min(absVx, absVy) / Math.max(absVx, absVy);
+    if (ratio >= 0.9) {
+      return { x: player.x, y: player.y };
+    }
+  }
+
+  if (absVx > absVy) {
+    vy = 0;
+  } else if (absVy > absVx) {
+    vx = 0;
+  }
   return {
     x: player.x + vx * config.NPC_PREDICTION_TIME,
     y: player.y + vy * config.NPC_PREDICTION_TIME,
