@@ -526,7 +526,9 @@ public class GridEnemyController : MonoBehaviour
         }
 
         if (!found)
+        {
             return null;
+        }
 
         var step = targetCell;
         while (cameFrom.TryGetValue(step, out var prev) && prev != _currentCell)
@@ -577,7 +579,6 @@ public class GridEnemyController : MonoBehaviour
         _isMoving = true;
 
         Vector2 targetPos = CellToWorld(cell);
-
         bool canMove = occupancyManager == null || occupancyManager.TryMove(_currentCell, cell);
         if (!canMove)
         {
