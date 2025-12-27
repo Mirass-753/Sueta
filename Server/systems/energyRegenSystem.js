@@ -1,4 +1,4 @@
-function startEnergyRegen({ stats, config, broadcast, npcs }) {
+function startEnergyRegen({ stats, config, broadcast, npcs, players }) {
   setInterval(() => {
     const now = Date.now() / 1000;
 
@@ -7,6 +7,8 @@ function startEnergyRegen({ stats, config, broadcast, npcs }) {
       setHp: stats.setHp,
       defaultHp: config.DEFAULT_HP,
       spawnPoints: config.NPC_SPAWN_POINTS,
+      players,
+      config,
     });
 
     for (const [id, currentEnergy] of stats.energyEntries()) {

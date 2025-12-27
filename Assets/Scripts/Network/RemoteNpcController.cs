@@ -48,6 +48,8 @@ public class RemoteNpcController : MonoBehaviour
     {
         _attack = GetComponent<EnemyAttack>();
         _arrow = GetComponent<ArrowController>();
+        if (_arrow == null)
+            _arrow = GetComponentInChildren<ArrowController>(true);
         var gridController = GetComponent<GridEnemyController>();
         if (gridController != null)
         {
@@ -65,7 +67,11 @@ public class RemoteNpcController : MonoBehaviour
         if (_arrow != null)
         {
             _arrow.allowPlayerInput = false;
+            _arrow.hideWhenNotCombat = false;
             _arrow.SetCombatActive(true);
+            var arrowRenderer = _arrow.GetComponent<SpriteRenderer>();
+            if (arrowRenderer != null && !arrowRenderer.enabled)
+                arrowRenderer.enabled = true;
         }
     }
 
