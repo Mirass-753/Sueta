@@ -17,6 +17,8 @@ const DIRECTIONS = [...ORTHO_DIRECTIONS, ...DIAGONAL_DIRECTIONS];
 const MAX_PATH_NODES = 200;
 const ORTHO_COST = 1;
 const DIAGONAL_COST = Math.SQRT2;
+const DEBUG_AI = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
+  || process.env.DEBUG_AI === '1';
 
 function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
@@ -47,6 +49,7 @@ function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
 
       const meta = npcs.ensureNpcMeta(npcId);
       ensureMetaDefaults(meta, now);
+      meta.npcId = npcId;
       const currentCell = worldToCell(npc.x, npc.y, config);
       const npcMaxHp = config.DEFAULT_HP;
       const healthPercent = npcMaxHp > 0 ? hp / npcMaxHp : 1;
@@ -93,6 +96,12 @@ function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
       });
 
       if (nextCell) {
+        if (DEBUG_AI) {
+          console.log('[NPC AI] move', npcId, {
+            from: currentCell,
+            to: nextCell,
+          });
+        }
         const dirX = nextCell.x - currentCell.x;
         const dirY = nextCell.y - currentCell.y;
         const norm = Math.hypot(dirX, dirY) || 1;
@@ -106,6 +115,9 @@ function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
         npc.y = worldPos.y;
         npcs.setNpc(npcId, npc);
       } else {
+        if (DEBUG_AI && meta.moving) {
+          console.log('[NPC AI] stop', npcId, { at: currentCell });
+        }
         meta.moving = false;
         meta.dirX = 0;
         meta.dirY = 0;
@@ -331,6 +343,9 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
 
 function changeState(meta, next, now) {
   if (meta.state === next) return;
+  if (DEBUG_AI) {
+    console.log('[NPC AI] state', meta.npcId || '?', meta.state, '->', next);
+  }
   meta.state = next;
   meta.tStateChange = now;
 }
@@ -350,6 +365,14 @@ function decideAction({
   stats,
   broadcast,
 }) {
+  if (DEBUG_AI) {
+    console.log('[NPC AI] decide', meta.npcId || '?', {
+      state: meta.state,
+      currentCell,
+      distanceToPlayer,
+      healthPercent,
+    });
+  }
   switch (meta.state) {
     case 'Patrol':
       return decidePatrolStep({ meta, npc, currentCell, config, occupancy, blockedCells, now });
@@ -421,6 +444,12 @@ function decidePatrolStep({ meta, npc, currentCell, config, occupancy, blockedCe
   }
 
   const newTarget = patrolCells[Math.min(meta.patrolIndex || 0, patrolCells.length - 1)];
+  if (DEBUG_AI) {
+    console.log('[NPC AI] patrol', meta.npcId || '?', {
+      targetCell: newTarget,
+      patrolIndex: meta.patrolIndex || 0,
+    });
+  }
   return findPathTo(currentCell, { x: newTarget.x, y: newTarget.y }, occupancy, blockedCells);
 }
 
@@ -456,10 +485,19 @@ function decideChaseStep({
   if (distanceToPlayer <= config.NPC_ATTACK_RANGE) {
     const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
     if (canAttack) {
+      if (DEBUG_AI) {
+        console.log('[NPC AI] chase hold', meta.npcId || '?', {
+          distanceToPlayer,
+          attackRange: config.NPC_ATTACK_RANGE,
+        });
+      }
       return null;
     }
   }
 
+  if (DEBUG_AI) {
+    console.log('[NPC AI] chase', meta.npcId || '?', { targetCell });
+  }
   return findPathTo(currentCell, targetCell, occupancy, blockedCells);
 }
 
@@ -487,6 +525,13 @@ function decideAttackStep({
 
   if (adjacent && canAttack && canAttackAfterMove) {
     const dir = normalizeVector(player.x - npc.x, player.y - npc.y);
+    if (DEBUG_AI) {
+      console.log('[NPC AI] attack', meta.npcId || '?', {
+        targetId: player.id,
+        dirX: dir.x,
+        dirY: dir.y,
+      });
+    }
     performAttack({
       npcId,
       playerId: player.id,
@@ -501,6 +546,9 @@ function decideAttackStep({
     return null;
   }
 
+  if (DEBUG_AI) {
+    console.log('[NPC AI] attack move', meta.npcId || '?', { playerCell });
+  }
   return findPathTo(currentCell, playerCell, occupancy, blockedCells);
 }
 
@@ -515,6 +563,12 @@ function decideRetreatStep({ currentCell, player, config, occupancy, blockedCell
   const rx = retreatDirection.x === 0 ? 0 : retreatDirection.x > 0 ? 1 : -1;
   const ry = retreatDirection.y === 0 ? 0 : retreatDirection.y > 0 ? 1 : -1;
   const retreatTarget = { x: currentCell.x + rx, y: currentCell.y + ry };
+  if (DEBUG_AI) {
+    console.log('[NPC AI] retreat', {
+      playerCell,
+      retreatTarget,
+    });
+  }
 
   if (!isCellWalkable(retreatTarget, currentCell, occupancy, blockedCells)) {
     const alternatives = [
@@ -538,6 +592,9 @@ function decideSearchStep({ meta, currentCell, occupancy, blockedCells }) {
   if (!meta.lastKnownPlayerCell) return null;
 
   const target = meta.lastKnownPlayerCell;
+  if (DEBUG_AI) {
+    console.log('[NPC AI] search', meta.npcId || '?', { target });
+  }
   if (target.x === currentCell.x && target.y === currentCell.y) {
     for (const dir of DIRECTIONS) {
       const checkCell = { x: currentCell.x + dir.x, y: currentCell.y + dir.y };
@@ -571,6 +628,9 @@ function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
   }
 
   if (goalKeys.length === 0) {
+    if (DEBUG_AI) {
+      console.log('[NPC AI] path none', { currentCell, targetCell });
+    }
     return null;
   }
   const goalSet = new Set(goalKeys);
@@ -615,6 +675,9 @@ function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
   }
 
   if (!reachedGoalKey) {
+    if (DEBUG_AI) {
+      console.log('[NPC AI] path failed', { currentCell, targetCell });
+    }
     return null;
   }
 
@@ -630,6 +693,9 @@ function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
   }
 
   const nextStep = parseCellKey(stepKey);
+  if (DEBUG_AI) {
+    console.log('[NPC AI] path step', { currentCell, targetCell, nextStep });
+  }
   return isCellWalkable(nextStep, currentCell, occupancy, blockedCells) ? nextStep : null;
 }
 

@@ -49,10 +49,6 @@ public class GridEnemyController : MonoBehaviour
     [Header("Occupancy")]
     public GridOccupancyManager occupancyManager;
 
-    [Header("Debug")]
-    [Tooltip("Выводить подробные логи принятия решений и движения.")]
-    public bool enableDebugLogs = false;
-
     // Состояния AI
     private enum AIState
     {
@@ -314,11 +310,6 @@ public class GridEnemyController : MonoBehaviour
     {
         if (_currentState == newState) return;
 
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} state: {_currentState} -> {newState}");
-        }
-
         _currentState = newState;
         _stateChangeTime = Time.time;
     }
@@ -354,11 +345,6 @@ public class GridEnemyController : MonoBehaviour
                 break;
         }
 
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} state={_currentState} currentCell={_currentCell} nextCell={(nextCell.HasValue ? nextCell.Value.ToString() : "null")}");
-        }
-
         if (nextCell.HasValue)
         {
             StartCoroutine(MoveToCell(nextCell.Value));
@@ -384,10 +370,6 @@ public class GridEnemyController : MonoBehaviour
         }
 
         Vector2Int target = patrolCells[_patrolIndex];
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} patrol target={target} patrolIndex={_patrolIndex}");
-        }
         return FindPathTo(target);
     }
 
@@ -399,10 +381,6 @@ public class GridEnemyController : MonoBehaviour
         // Предсказываем позицию игрока
         Vector2 predictedPos = PredictPlayerPosition();
         Vector2Int targetCell = WorldToCell(predictedPos);
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} chase targetCell={targetCell} predictedPos={predictedPos}");
-        }
 
         // Если уже рядом - не двигаемся, атакуем
         int dx = targetCell.x - _currentCell.x;
@@ -411,10 +389,6 @@ public class GridEnemyController : MonoBehaviour
 
         if (distance <= attackRange && attack != null && attack.CanAttack)
         {
-            if (enableDebugLogs)
-            {
-                Debug.Log($"[AI] {name} chase: in attack range (distance={distance:F2}), hold position");
-            }
             return null; // остаемся на месте для атаки
         }
 
@@ -429,10 +403,6 @@ public class GridEnemyController : MonoBehaviour
         Vector2Int playerCell = sense.PlayerCell(gridSize, cellCenterOffset);
         int dx = playerCell.x - _currentCell.x;
         int dy = playerCell.y - _currentCell.y;
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} attack playerCell={playerCell} dx={dx} dy={dy}");
-        }
 
         // Если можем атаковать - атакуем
         if (Mathf.Abs(dx) <= 1 && Mathf.Abs(dy) <= 1 && (dx != 0 || dy != 0))
@@ -442,11 +412,6 @@ public class GridEnemyController : MonoBehaviour
                 Vector2 dir = arrow != null && arrow.Direction != Vector2.zero
                     ? arrow.Direction
                     : new Vector2(Mathf.Sign(dx), Mathf.Sign(dy)).normalized;
-
-                if (enableDebugLogs)
-                {
-                    Debug.Log($"[AI] {name} attack: TryAttack dir={dir}");
-                }
 
                 attack.TryAttack(dir);
                 _lastAttackTime = Time.time;
@@ -472,10 +437,6 @@ public class GridEnemyController : MonoBehaviour
         int ry = retreatDirection.y == 0 ? 0 : (retreatDirection.y > 0 ? 1 : -1);
 
         Vector2Int retreatTarget = new Vector2Int(_currentCell.x + rx, _currentCell.y + ry);
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} retreat from playerCell={playerCell} target={retreatTarget}");
-        }
 
         // Если не можем отступить в этом направлении, пробуем другие
         if (!IsCellWalkable(retreatTarget))
@@ -508,10 +469,6 @@ public class GridEnemyController : MonoBehaviour
             return null;
 
         Vector2Int target = _lastKnownPlayerCell.Value;
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} search target={target}");
-        }
         
         // Если достигли последней известной позиции, ищем рядом
         if (target == _currentCell)
@@ -570,10 +527,6 @@ public class GridEnemyController : MonoBehaviour
 
         if (!found)
         {
-            if (enableDebugLogs)
-            {
-                Debug.Log($"[AI] {name} path not found to {targetCell}");
-            }
             return null;
         }
 
@@ -581,11 +534,6 @@ public class GridEnemyController : MonoBehaviour
         while (cameFrom.TryGetValue(step, out var prev) && prev != _currentCell)
         {
             step = prev;
-        }
-
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} path step to {targetCell} -> {step}");
         }
 
         return step;
@@ -631,18 +579,9 @@ public class GridEnemyController : MonoBehaviour
         _isMoving = true;
 
         Vector2 targetPos = CellToWorld(cell);
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} move start {_currentCell} -> {cell} targetPos={targetPos}");
-        }
-
         bool canMove = occupancyManager == null || occupancyManager.TryMove(_currentCell, cell);
         if (!canMove)
         {
-            if (enableDebugLogs)
-            {
-                Debug.Log($"[AI] {name} move blocked {_currentCell} -> {cell}");
-            }
             _isMoving = false;
             yield break;
         }
@@ -661,10 +600,6 @@ public class GridEnemyController : MonoBehaviour
 
         transform.position = targetPos;
         _currentCell = cell;
-        if (enableDebugLogs)
-        {
-            Debug.Log($"[AI] {name} move complete currentCell={_currentCell}");
-        }
 
         _isMoving = false;
     }
