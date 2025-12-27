@@ -638,14 +638,40 @@ function findPathTo(currentCell, targetCell, occupancy, blockedCells, options = 
   }
   const goalSet = new Set(goalKeys);
 
-  const open = [{ cell: currentCell, key: startKey, g: 0, f: heuristicCost(currentCell, targetCell) }];
+  const open = [{
+    cell: currentCell,
+    key: startKey,
+    g: 0,
+    f: heuristicCost(currentCell, targetCell),
+    isDiagonal: false,
+  }];
   const cameFrom = new Map();
   const gScore = new Map([[startKey, 0]]);
   const closed = new Set();
   let reachedGoalKey = null;
 
   while (open.length > 0 && closed.size <= maxNodes) {
-    open.sort((a, b) => a.f - b.f || a.g - b.g);
+    let hasTieBreak = false;
+    if (DEBUG_AI && open.length > 1) {
+      for (let i = 0; i < open.length - 1 && !hasTieBreak; i += 1) {
+        const item = open[i];
+        for (let j = i + 1; j < open.length; j += 1) {
+          const other = open[j];
+          if (item.f === other.f && item.g === other.g && item.isDiagonal !== other.isDiagonal) {
+            hasTieBreak = true;
+            break;
+          }
+        }
+      }
+    }
+    open.sort((a, b) => (
+      a.f - b.f
+      || a.g - b.g
+      || (a.isDiagonal === b.isDiagonal ? 0 : (a.isDiagonal ? 1 : -1))
+    ));
+    if (DEBUG_AI && hasTieBreak) {
+      console.log('[NPC AI] path tie-break', { currentCell, targetCell });
+    }
     const current = open.shift();
     if (!current) break;
     if (goalSet.has(current.key)) {
@@ -669,10 +695,25 @@ function findPathTo(currentCell, targetCell, occupancy, blockedCells, options = 
       gScore.set(nextKey, tentativeG);
       const fScore = tentativeG + heuristicCost(next, targetCell);
       const existingIndex = open.findIndex((item) => item.key === nextKey);
+      const dx = Math.abs(next.x - current.cell.x);
+      const dy = Math.abs(next.y - current.cell.y);
+      const isDiagonal = dx === 1 && dy === 1;
       if (existingIndex >= 0) {
-        open[existingIndex] = { cell: next, key: nextKey, g: tentativeG, f: fScore };
+        open[existingIndex] = {
+          cell: next,
+          key: nextKey,
+          g: tentativeG,
+          f: fScore,
+          isDiagonal,
+        };
       } else {
-        open.push({ cell: next, key: nextKey, g: tentativeG, f: fScore });
+        open.push({
+          cell: next,
+          key: nextKey,
+          g: tentativeG,
+          f: fScore,
+          isDiagonal,
+        });
       }
     }
   }
