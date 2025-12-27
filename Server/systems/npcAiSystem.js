@@ -11,6 +11,7 @@ const DIRECTIONS = [
   { x: -1, y: 1 },
   { x: -1, y: -1 },
 ];
+const MAX_PATH_NODES = 200;
 
 function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
@@ -546,45 +547,76 @@ function decideSearchStep({ meta, currentCell, occupancy, blockedCells }) {
 }
 
 function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
-  const directStep = stepTowards(currentCell, targetCell);
-  if (isCellWalkable(directStep, currentCell, occupancy, blockedCells)) {
-    return directStep;
-  }
+  if (!targetCell) return null;
+  const maxNodes = MAX_PATH_NODES;
+  const startKey = cellKey(currentCell);
+  const goalKey = cellKey(targetCell);
+  if (startKey === goalKey) return null;
 
-  const dx = targetCell.x - currentCell.x;
-  const dy = targetCell.y - currentCell.y;
-
-  let alternatives;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    alternatives = [
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y },
-      { x: currentCell.x, y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y - (dy > 0 ? 1 : -1) },
-    ];
+  let goalKeys = [];
+  if (isCellWalkable(targetCell, currentCell, occupancy, blockedCells)) {
+    goalKeys = [goalKey];
   } else {
-    alternatives = [
-      { x: currentCell.x, y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x - (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-    ];
+    const candidateGoals = getNeighbors(targetCell).filter((cell) =>
+      isCellWalkable(cell, currentCell, occupancy, blockedCells),
+    );
+    goalKeys = candidateGoals.map((cell) => cellKey(cell));
   }
 
-  for (const alt of alternatives) {
-    if (isCellWalkable(alt, currentCell, occupancy, blockedCells)) {
-      return alt;
+  if (goalKeys.length === 0) {
+    return null;
+  }
+  const goalSet = new Set(goalKeys);
+
+  const queue = [currentCell];
+  const cameFrom = new Map();
+  const visited = new Set([startKey]);
+  let index = 0;
+  let reachedGoalKey = null;
+
+  while (index < queue.length && visited.size <= maxNodes) {
+    const cell = queue[index++];
+    const cellKeyValue = cellKey(cell);
+    if (goalSet.has(cellKeyValue)) {
+      reachedGoalKey = cellKeyValue;
+      break;
+    }
+
+    const neighbors = getNeighbors(cell);
+    for (const next of neighbors) {
+      const nextKey = cellKey(next);
+      if (visited.has(nextKey)) continue;
+      if (!isCellWalkable(next, currentCell, occupancy, blockedCells)) continue;
+      visited.add(nextKey);
+      cameFrom.set(nextKey, cellKeyValue);
+      if (goalSet.has(nextKey)) {
+        reachedGoalKey = nextKey;
+        queue.push(next);
+        index = queue.length;
+        break;
+      }
+      queue.push(next);
+      if (visited.size >= maxNodes) break;
     }
   }
 
-  for (const dir of DIRECTIONS) {
-    const checkCell = { x: currentCell.x + dir.x, y: currentCell.y + dir.y };
-    if (isCellWalkable(checkCell, currentCell, occupancy, blockedCells)) {
-      return checkCell;
-    }
+  if (!reachedGoalKey) {
+    return null;
   }
 
-  return null;
+  let stepKey = reachedGoalKey;
+  let previousKey = cameFrom.get(stepKey);
+  while (previousKey && previousKey !== startKey) {
+    stepKey = previousKey;
+    previousKey = cameFrom.get(stepKey);
+  }
+
+  if (!previousKey && stepKey !== reachedGoalKey) {
+    return null;
+  }
+
+  const nextStep = parseCellKey(stepKey);
+  return isCellWalkable(nextStep, currentCell, occupancy, blockedCells) ? nextStep : null;
 }
 
 function isCellWalkable(cell, currentCell, occupancy, blockedCells) {
@@ -596,13 +628,17 @@ function isCellWalkable(cell, currentCell, occupancy, blockedCells) {
   return true;
 }
 
-function stepTowards(currentCell, targetCell) {
-  const dx = targetCell.x - currentCell.x;
-  const dy = targetCell.y - currentCell.y;
-  const moveOnX = Math.abs(dx) >= Math.abs(dy);
-  const sx = moveOnX ? (dx === 0 ? 0 : dx > 0 ? 1 : -1) : 0;
-  const sy = moveOnX ? 0 : dy === 0 ? 0 : dy > 0 ? 1 : -1;
-  return { x: currentCell.x + sx, y: currentCell.y + sy };
+function getNeighbors(cell) {
+  return DIRECTIONS.map((dir) => ({ x: cell.x + dir.x, y: cell.y + dir.y }));
+}
+
+function cellKey(cell) {
+  return `${cell.x},${cell.y}`;
+}
+
+function parseCellKey(key) {
+  const [x, y] = key.split(',').map(Number);
+  return { x, y };
 }
 
 function worldToCell(x, y, config) {
