@@ -40,6 +40,7 @@ public class RemoteNpcController : MonoBehaviour
     private readonly Queue<Vector2Int> _moveQueue = new Queue<Vector2Int>();
     private bool _pendingRebuild;
     private bool _skipDelayUntilSynced;
+    private const float ArrowAlignToleranceDeg = 1f;
 
     private EnemyAttack _attack;
     private ArrowController _arrow;
@@ -192,6 +193,10 @@ public class RemoteNpcController : MonoBehaviour
 
         Vector2Int nextCell = _moveQueue.Dequeue();
         Vector2 targetPos = CellToWorld(nextCell);
+        Vector2Int step = nextCell - _currentCell;
+
+        if (step != Vector2Int.zero)
+            yield return WaitForArrowAlignment(step);
 
         float elapsed = 0f;
         float duration = Mathf.Max(moveDuration, 0f);
@@ -214,12 +219,7 @@ public class RemoteNpcController : MonoBehaviour
             transform.position = targetPos;
         }
 
-        Vector2Int step = nextCell - _currentCell;
-        float delay = _skipDelayUntilSynced ? 0f : ComputeDelay(step);
         _currentCell = nextCell;
-
-        if (delay > 0f)
-            yield return new WaitForSeconds(delay);
 
         _isMoving = false;
         _moveRoutine = null;
@@ -238,6 +238,48 @@ public class RemoteNpcController : MonoBehaviour
             _hasPendingMove = false;
             TryStartMove();
         }
+    }
+
+    private IEnumerator WaitForArrowAlignment(Vector2Int step)
+    {
+        if (_arrow == null)
+            yield break;
+
+        Vector2 moveDir = new Vector2(step.x, step.y).normalized;
+        if (moveDir == Vector2.zero)
+            yield break;
+
+        float targetAngle = Mathf.Atan2(moveDir.y, moveDir.x) * Mathf.Rad2Deg;
+        SetArrowTargetAngle(targetAngle);
+
+        float delay = _skipDelayUntilSynced ? 0f : ComputeDelay(step);
+        float elapsed = 0f;
+
+        while (elapsed < delay || !IsArrowAligned(targetAngle))
+        {
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+    }
+
+    private void SetArrowTargetAngle(float angle)
+    {
+        if (_arrow == null)
+            return;
+
+        if (_arrowSmoother != null)
+            _arrowSmoother.SetTargetAngle(angle);
+        else
+            _arrow.SetAngle(angle);
+    }
+
+    private bool IsArrowAligned(float targetAngle)
+    {
+        if (_arrow == null)
+            return true;
+
+        float diff = Mathf.Abs(Mathf.DeltaAngle(_arrow.Angle, targetAngle));
+        return diff <= ArrowAlignToleranceDeg;
     }
 
     private void RebuildMoveQueue()
