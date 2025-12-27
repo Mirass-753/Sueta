@@ -586,8 +586,9 @@ function isCellWalkable(cell, currentCell, occupancy, blockedCells) {
 function stepTowards(currentCell, targetCell) {
   const dx = targetCell.x - currentCell.x;
   const dy = targetCell.y - currentCell.y;
-  const sx = dx === 0 ? 0 : dx > 0 ? 1 : -1;
-  const sy = dy === 0 ? 0 : dy > 0 ? 1 : -1;
+  const moveOnX = Math.abs(dx) >= Math.abs(dy);
+  const sx = moveOnX ? (dx === 0 ? 0 : dx > 0 ? 1 : -1) : 0;
+  const sy = moveOnX ? 0 : dy === 0 ? 0 : dy > 0 ? 1 : -1;
   return { x: currentCell.x + sx, y: currentCell.y + sy };
 }
 
