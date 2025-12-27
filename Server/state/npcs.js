@@ -57,20 +57,29 @@ function setNpcMeta(id, meta) {
   npcMeta.set(id, meta);
 }
 
-function spawnNpcsIfNeeded({ broadcast, setHp, defaultHp, spawnPoints }) {
+function spawnNpcsIfNeeded({ broadcast, setHp, defaultHp, spawnPoints, players, config }) {
   if (npcStates.size > 0) return;
+
+  const playerPos = getFirstPlayerPosition(players);
+  const spawnRadius =
+    config && typeof config.NPC_SPAWN_NEAR_PLAYER_RADIUS === 'number'
+      ? config.NPC_SPAWN_NEAR_PLAYER_RADIUS
+      : null;
 
   spawnPoints.forEach((spawn) => {
     const hp = setHp(spawn.id, defaultHp);
-    const npcState = { x: spawn.x, y: spawn.y, hp };
+    const spawnPos = playerPos
+      ? offsetFromPlayer(playerPos, spawn, spawnRadius)
+      : { x: spawn.x, y: spawn.y };
+    const npcState = { x: spawnPos.x, y: spawnPos.y, hp };
     npcStates.set(spawn.id, npcState);
     const meta = ensureNpcMeta(spawn.id);
 
     broadcast({
       type: 'npc_spawn',
       npcId: spawn.id,
-      x: spawn.x,
-      y: spawn.y,
+      x: spawnPos.x,
+      y: spawnPos.y,
       hp,
       state: meta.state,
       targetId: meta.targetPlayerId,
@@ -79,6 +88,29 @@ function spawnNpcsIfNeeded({ broadcast, setHp, defaultHp, spawnPoints }) {
       moving: !!meta.moving,
     });
   });
+}
+
+function getFirstPlayerPosition(players) {
+  if (!players || typeof players.entries !== 'function') return null;
+  for (const [, player] of players.entries()) {
+    if (player && typeof player.x === 'number' && typeof player.y === 'number') {
+      return { x: player.x, y: player.y };
+    }
+  }
+  return null;
+}
+
+function offsetFromPlayer(playerPos, spawn, spawnRadius) {
+  const fallback = spawnRadius && spawnRadius > 0 ? spawnRadius : 2;
+  const rawX = typeof spawn.x === 'number' ? spawn.x : fallback;
+  const rawY = typeof spawn.y === 'number' ? spawn.y : 0;
+  const length = Math.hypot(rawX, rawY) || 1;
+  const targetRadius = spawnRadius && spawnRadius > 0 ? spawnRadius : fallback;
+  const scale = targetRadius / length;
+  return {
+    x: playerPos.x + rawX * scale,
+    y: playerPos.y + rawY * scale,
+  };
 }
 
 module.exports = {

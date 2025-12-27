@@ -23,7 +23,7 @@ const handlers = createHandlers({
   config,
   broadcast: broadcaster.broadcast,
 });
-startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs });
+startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs, players });
 startNpcBroadcast({ npcs, config, broadcast: broadcaster.broadcast });
 startNpcAiLoop({ npcs, players, stats, config, broadcast: broadcaster.broadcast });
 

@@ -11,6 +11,7 @@ const NPC_SPAWN_POINTS = [
   { id: 'npc-1', x: -5, y: 0 },
   { id: 'npc-2', x: 5, y: 0 },
 ];
+const NPC_SPAWN_NEAR_PLAYER_RADIUS = 2;
 
 const NPC_STATE_BROADCAST_PERIOD_MS = 100;
 const GRID_SIZE = 1;
@@ -46,6 +47,7 @@ module.exports = {
   DEFAULT_HP,
   DEFAULT_ENERGY,
   NPC_SPAWN_POINTS,
+  NPC_SPAWN_NEAR_PLAYER_RADIUS,
   NPC_STATE_BROADCAST_PERIOD_MS,
   GRID_SIZE,
   CELL_CENTER_OFFSET_X,
