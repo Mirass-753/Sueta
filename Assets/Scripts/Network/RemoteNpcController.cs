@@ -5,7 +5,7 @@ using UnityEngine;
 public class RemoteNpcController : MonoBehaviour
 {
     [SerializeField]
-    private float moveDuration = 0.2f;
+    private float moveDuration = GridEnemyController.DefaultMoveDuration;
 
     [Header("Grid")]
     [SerializeField]

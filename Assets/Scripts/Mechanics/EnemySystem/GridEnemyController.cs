@@ -7,10 +7,12 @@ using UnityEngine;
 /// </summary>
 public class GridEnemyController : MonoBehaviour
 {
+    public const float DefaultMoveDuration = 0.2f;
+
     [Header("Grid")]
     public float gridSize = 1f;
     public Vector2 cellCenterOffset = new Vector2(0.5f, 0.5f);
-    public float moveDuration = 0.2f;
+    public float moveDuration = DefaultMoveDuration;
 
     [Header("AI - Detection")]
     public EnemySense sense;

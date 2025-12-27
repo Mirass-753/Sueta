@@ -3,9 +3,11 @@ using UnityEngine;
 /// Управляет стрелкой: может крутиться либо от ввода, либо от внешнего кода (RotateTowards/SetAngle).
 public class ArrowController : MonoBehaviour
 {
+    public const float DefaultRotationSpeedDegPerSec = 72f;
+
     [Header("Rotation")]
     [Tooltip("Градусов в секунду. 72 = полный оборот за 5 секунд.")]
-    public float rotationSpeedDegPerSec = 72f;
+    public float rotationSpeedDegPerSec = DefaultRotationSpeedDegPerSec;
 
     [Tooltip("Прятать объект стрелки вне боевого режима.")]
     public bool hideWhenNotCombat = true;
