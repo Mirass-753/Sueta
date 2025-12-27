@@ -16,8 +16,8 @@ public class GridEnemyController : MonoBehaviour
 
     [Header("AI - Detection")]
     public EnemySense sense;
-    public float aggroRange = 8f;
-    public float loseRange = 12f;
+    public float aggroRange = 12f;
+    public float loseRange = 14f;
     public float memoryDuration = 3f; // как долго помнить последнюю позицию игрока
 
     [Header("AI - Combat")]
