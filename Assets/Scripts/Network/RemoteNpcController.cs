@@ -40,6 +40,7 @@ public class RemoteNpcController : MonoBehaviour
     private readonly Queue<Vector2Int> _moveQueue = new Queue<Vector2Int>();
     private bool _pendingRebuild;
     private bool _skipDelayUntilSynced;
+    private bool _aligningToMoveDirection;
     private const float ArrowAlignToleranceDeg = 1f;
 
     private EnemyAttack _attack;
@@ -106,7 +107,7 @@ public class RemoteNpcController : MonoBehaviour
             _state = state;
         SetDesiredCell(position, force: !_hasDesiredCell);
 
-        if (_arrow != null && direction != Vector2.zero)
+        if (_arrow != null && direction != Vector2.zero && !_aligningToMoveDirection)
         {
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             if (_arrowSmoother != null)
@@ -255,11 +256,13 @@ public class RemoteNpcController : MonoBehaviour
         float delay = _skipDelayUntilSynced ? 0f : ComputeDelay(step);
         float elapsed = 0f;
 
+        _aligningToMoveDirection = true;
         while (elapsed < delay || !IsArrowAligned(targetAngle))
         {
             elapsed += Time.deltaTime;
             yield return null;
         }
+        _aligningToMoveDirection = false;
     }
 
     private void SetArrowTargetAngle(float angle)
