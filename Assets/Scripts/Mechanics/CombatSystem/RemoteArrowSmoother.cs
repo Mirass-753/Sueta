@@ -36,6 +36,15 @@ public class RemoteArrowSmoother : MonoBehaviour
         _targetAngle = Mathf.Repeat(angleDeg, 360f);
     }
 
+    public void MatchRotationSpeed(float rotationSpeedDegPerSec)
+    {
+        if (rotationSpeedDegPerSec <= 0f)
+            return;
+
+        maxSpeedDegPerSec = rotationSpeedDegPerSec;
+        smoothTime = Mathf.Clamp(1f / rotationSpeedDegPerSec, 0.05f, 0.15f);
+    }
+
     private void Update()
     {
         if (arrow == null)

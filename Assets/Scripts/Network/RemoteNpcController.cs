@@ -39,6 +39,7 @@ public class RemoteNpcController : MonoBehaviour
 
     private EnemyAttack _attack;
     private ArrowController _arrow;
+    private RemoteArrowSmoother _arrowSmoother;
 
     public string NpcId => _npcId;
     public string State => _state;
@@ -50,6 +51,13 @@ public class RemoteNpcController : MonoBehaviour
         _arrow = GetComponent<ArrowController>();
         if (_arrow == null)
             _arrow = GetComponentInChildren<ArrowController>(true);
+        _arrowSmoother = GetComponent<RemoteArrowSmoother>();
+        if (_arrowSmoother == null && _arrow != null)
+        {
+            _arrowSmoother = _arrow.GetComponent<RemoteArrowSmoother>();
+            if (_arrowSmoother == null)
+                _arrowSmoother = _arrow.gameObject.AddComponent<RemoteArrowSmoother>();
+        }
         var gridController = GetComponent<GridEnemyController>();
         if (gridController != null)
         {
@@ -73,6 +81,9 @@ public class RemoteNpcController : MonoBehaviour
             if (arrowRenderer != null && !arrowRenderer.enabled)
                 arrowRenderer.enabled = true;
         }
+
+        if (_arrow != null && _arrowSmoother != null)
+            _arrowSmoother.MatchRotationSpeed(_arrow.rotationSpeedDegPerSec);
     }
 
     public void Initialize(string npcId, float hp)
@@ -93,7 +104,10 @@ public class RemoteNpcController : MonoBehaviour
         if (_arrow != null && direction != Vector2.zero)
         {
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            _arrow.SetAngle(angle);
+            if (_arrowSmoother != null)
+                _arrowSmoother.SetTargetAngle(angle);
+            else
+                _arrow.SetAngle(angle);
         }
     }
 
@@ -102,7 +116,10 @@ public class RemoteNpcController : MonoBehaviour
         if (_arrow != null && direction != Vector2.zero)
         {
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            _arrow.SetAngle(angle);
+            if (_arrowSmoother != null)
+                _arrowSmoother.SetTargetAngle(angle);
+            else
+                _arrow.SetAngle(angle);
         }
 
         if (_attack != null)
