@@ -1,16 +1,22 @@
 const fs = require('fs');
 const path = require('path');
 
-const DIRECTIONS = [
+const ORTHO_DIRECTIONS = [
   { x: 1, y: 0 },
   { x: -1, y: 0 },
   { x: 0, y: 1 },
   { x: 0, y: -1 },
+];
+const DIAGONAL_DIRECTIONS = [
   { x: 1, y: 1 },
   { x: 1, y: -1 },
   { x: -1, y: 1 },
   { x: -1, y: -1 },
 ];
+const DIRECTIONS = [...ORTHO_DIRECTIONS, ...DIAGONAL_DIRECTIONS];
+const MAX_PATH_NODES = 200;
+const ORTHO_COST = 1;
+const DIAGONAL_COST = Math.SQRT2;
 
 function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
@@ -546,45 +552,85 @@ function decideSearchStep({ meta, currentCell, occupancy, blockedCells }) {
 }
 
 function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
-  const directStep = stepTowards(currentCell, targetCell);
-  if (isCellWalkable(directStep, currentCell, occupancy, blockedCells)) {
-    return directStep;
-  }
+  if (!targetCell) return null;
+  const maxNodes = MAX_PATH_NODES;
+  const startKey = cellKey(currentCell);
+  const goalKey = cellKey(targetCell);
+  if (startKey === goalKey) return null;
+  const aligned = currentCell.x === targetCell.x || currentCell.y === targetCell.y;
+  const neighborDirections = aligned ? ORTHO_DIRECTIONS : DIRECTIONS;
 
-  const dx = targetCell.x - currentCell.x;
-  const dy = targetCell.y - currentCell.y;
-
-  let alternatives;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    alternatives = [
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y },
-      { x: currentCell.x, y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y - (dy > 0 ? 1 : -1) },
-    ];
+  let goalKeys = [];
+  if (isCellWalkable(targetCell, currentCell, occupancy, blockedCells)) {
+    goalKeys = [goalKey];
   } else {
-    alternatives = [
-      { x: currentCell.x, y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y },
-      { x: currentCell.x + (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-      { x: currentCell.x - (dx > 0 ? 1 : -1), y: currentCell.y + (dy > 0 ? 1 : -1) },
-    ];
+    const candidateGoals = getNeighbors(targetCell, neighborDirections).filter((cell) =>
+      isCellWalkable(cell, currentCell, occupancy, blockedCells),
+    );
+    goalKeys = candidateGoals.map((cell) => cellKey(cell));
   }
 
-  for (const alt of alternatives) {
-    if (isCellWalkable(alt, currentCell, occupancy, blockedCells)) {
-      return alt;
+  if (goalKeys.length === 0) {
+    return null;
+  }
+  const goalSet = new Set(goalKeys);
+
+  const open = [{ cell: currentCell, key: startKey, g: 0, f: heuristicCost(currentCell, targetCell) }];
+  const cameFrom = new Map();
+  const gScore = new Map([[startKey, 0]]);
+  const closed = new Set();
+  let reachedGoalKey = null;
+
+  while (open.length > 0 && closed.size <= maxNodes) {
+    open.sort((a, b) => a.f - b.f || a.g - b.g);
+    const current = open.shift();
+    if (!current) break;
+    if (goalSet.has(current.key)) {
+      reachedGoalKey = current.key;
+      break;
+    }
+
+    closed.add(current.key);
+
+    const neighbors = getNeighbors(current.cell, neighborDirections);
+    for (const next of neighbors) {
+      const nextKey = cellKey(next);
+      if (closed.has(nextKey)) continue;
+      if (!isCellWalkable(next, currentCell, occupancy, blockedCells)) continue;
+      const stepCost = movementCost(current.cell, next);
+      const tentativeG = current.g + stepCost;
+      const knownG = gScore.get(nextKey);
+      if (knownG !== undefined && tentativeG >= knownG) continue;
+
+      cameFrom.set(nextKey, current.key);
+      gScore.set(nextKey, tentativeG);
+      const fScore = tentativeG + heuristicCost(next, targetCell);
+      const existingIndex = open.findIndex((item) => item.key === nextKey);
+      if (existingIndex >= 0) {
+        open[existingIndex] = { cell: next, key: nextKey, g: tentativeG, f: fScore };
+      } else {
+        open.push({ cell: next, key: nextKey, g: tentativeG, f: fScore });
+      }
     }
   }
 
-  for (const dir of DIRECTIONS) {
-    const checkCell = { x: currentCell.x + dir.x, y: currentCell.y + dir.y };
-    if (isCellWalkable(checkCell, currentCell, occupancy, blockedCells)) {
-      return checkCell;
-    }
+  if (!reachedGoalKey) {
+    return null;
   }
 
-  return null;
+  let stepKey = reachedGoalKey;
+  let previousKey = cameFrom.get(stepKey);
+  while (previousKey && previousKey !== startKey) {
+    stepKey = previousKey;
+    previousKey = cameFrom.get(stepKey);
+  }
+
+  if (!previousKey && stepKey !== reachedGoalKey) {
+    return null;
+  }
+
+  const nextStep = parseCellKey(stepKey);
+  return isCellWalkable(nextStep, currentCell, occupancy, blockedCells) ? nextStep : null;
 }
 
 function isCellWalkable(cell, currentCell, occupancy, blockedCells) {
@@ -596,13 +642,31 @@ function isCellWalkable(cell, currentCell, occupancy, blockedCells) {
   return true;
 }
 
-function stepTowards(currentCell, targetCell) {
-  const dx = targetCell.x - currentCell.x;
-  const dy = targetCell.y - currentCell.y;
-  const moveOnX = Math.abs(dx) >= Math.abs(dy);
-  const sx = moveOnX ? (dx === 0 ? 0 : dx > 0 ? 1 : -1) : 0;
-  const sy = moveOnX ? 0 : dy === 0 ? 0 : dy > 0 ? 1 : -1;
-  return { x: currentCell.x + sx, y: currentCell.y + sy };
+function getNeighbors(cell, directions = DIRECTIONS) {
+  return directions.map((dir) => ({ x: cell.x + dir.x, y: cell.y + dir.y }));
+}
+
+function cellKey(cell) {
+  return `${cell.x},${cell.y}`;
+}
+
+function parseCellKey(key) {
+  const [x, y] = key.split(',').map(Number);
+  return { x, y };
+}
+
+function movementCost(fromCell, toCell) {
+  const dx = Math.abs(toCell.x - fromCell.x);
+  const dy = Math.abs(toCell.y - fromCell.y);
+  return dx === 1 && dy === 1 ? DIAGONAL_COST : ORTHO_COST;
+}
+
+function heuristicCost(cell, targetCell) {
+  const dx = Math.abs(targetCell.x - cell.x);
+  const dy = Math.abs(targetCell.y - cell.y);
+  const min = Math.min(dx, dy);
+  const max = Math.max(dx, dy);
+  return DIAGONAL_COST * min + ORTHO_COST * (max - min);
 }
 
 function worldToCell(x, y, config) {
