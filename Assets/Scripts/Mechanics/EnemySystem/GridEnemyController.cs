@@ -16,8 +16,8 @@ public class GridEnemyController : MonoBehaviour
 
     [Header("AI - Detection")]
     public EnemySense sense;
-    public float aggroRange = 4f;
-    public float loseRange = 6f;
+    public float aggroRange = 8f;
+    public float loseRange = 12f;
     public float memoryDuration = 3f; // как долго помнить последнюю позицию игрока
 
     [Header("AI - Combat")]
@@ -78,17 +78,13 @@ public class GridEnemyController : MonoBehaviour
     private float _stateChangeTime;
     private float _patrolWaitEndTime;
 
-    // Направления для обхода препятствий (8 направлений)
+    // Направления для обхода препятствий (4 направления)
     private static readonly Vector2Int[] _directions = new Vector2Int[]
     {
         new Vector2Int(1, 0),   // вправо
         new Vector2Int(-1, 0), // влево
         new Vector2Int(0, 1),   // вверх
-        new Vector2Int(0, -1), // вниз
-        new Vector2Int(1, 1),  // вправо-вверх
-        new Vector2Int(1, -1), // вправо-вниз
-        new Vector2Int(-1, 1), // влево-вверх
-        new Vector2Int(-1, -1) // влево-вниз
+        new Vector2Int(0, -1) // вниз
     };
 
     void Start()
@@ -493,66 +489,52 @@ public class GridEnemyController : MonoBehaviour
     }
 
     /// <summary>
-    /// Умный поиск пути с обходом препятствий (упрощенный алгоритм).
+    /// Поиск кратчайшего пути по сетке с учетом препятствий (BFS).
     /// </summary>
     private Vector2Int? FindPathTo(Vector2Int targetCell)
     {
-        // Прямой путь
-        Vector2Int directStep = StepTowards(targetCell);
-        if (IsCellWalkable(directStep))
-        {
-            return directStep;
-        }
+        if (targetCell == _currentCell)
+            return null;
 
-        // Если прямой путь заблокирован, пробуем обход
-        int dx = targetCell.x - _currentCell.x;
-        int dy = targetCell.y - _currentCell.y;
+        var frontier = new Queue<Vector2Int>();
+        var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
 
-        // Приоритет: сначала по оси, где расстояние больше
-        Vector2Int[] alternatives;
-        if (Mathf.Abs(dx) > Mathf.Abs(dy))
-        {
-            // Двигаемся сначала по X
-            alternatives = new Vector2Int[]
-            {
-                new Vector2Int(_currentCell.x + (dx > 0 ? 1 : -1), _currentCell.y),
-                new Vector2Int(_currentCell.x, _currentCell.y + (dy > 0 ? 1 : -1)),
-                new Vector2Int(_currentCell.x + (dx > 0 ? 1 : -1), _currentCell.y + (dy > 0 ? 1 : -1)),
-                new Vector2Int(_currentCell.x + (dx > 0 ? 1 : -1), _currentCell.y - (dy > 0 ? 1 : -1))
-            };
-        }
-        else
-        {
-            // Двигаемся сначала по Y
-            alternatives = new Vector2Int[]
-            {
-                new Vector2Int(_currentCell.x, _currentCell.y + (dy > 0 ? 1 : -1)),
-                new Vector2Int(_currentCell.x + (dx > 0 ? 1 : -1), _currentCell.y),
-                new Vector2Int(_currentCell.x + (dx > 0 ? 1 : -1), _currentCell.y + (dy > 0 ? 1 : -1)),
-                new Vector2Int(_currentCell.x - (dx > 0 ? 1 : -1), _currentCell.y + (dy > 0 ? 1 : -1))
-            };
-        }
+        frontier.Enqueue(_currentCell);
+        cameFrom[_currentCell] = _currentCell;
 
-        // Пробуем альтернативные пути
-        foreach (var alt in alternatives)
+        bool found = false;
+        while (frontier.Count > 0)
         {
-            if (IsCellWalkable(alt))
+            var current = frontier.Dequeue();
+            if (current == targetCell)
             {
-                return alt;
+                found = true;
+                break;
+            }
+
+            foreach (var dir in _directions)
+            {
+                var next = current + dir;
+                if (cameFrom.ContainsKey(next))
+                    continue;
+                if (!IsCellWalkable(next))
+                    continue;
+
+                frontier.Enqueue(next);
+                cameFrom[next] = current;
             }
         }
 
-        // Если ничего не подходит, пробуем любую свободную соседнюю клетку
-        foreach (var dir in _directions)
+        if (!found)
+            return null;
+
+        var step = targetCell;
+        while (cameFrom.TryGetValue(step, out var prev) && prev != _currentCell)
         {
-            Vector2Int checkCell = _currentCell + dir;
-            if (IsCellWalkable(checkCell))
-            {
-                return checkCell;
-            }
+            step = prev;
         }
 
-        return null;
+        return step;
     }
 
     /// <summary>
