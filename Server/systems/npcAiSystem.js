@@ -104,6 +104,10 @@ function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
         meta.dirX = 0;
         meta.dirY = 0;
       }
+
+      if (shouldSendNpcState(meta, npc)) {
+        sendNpcStateToClient(npc, meta, broadcast);
+      }
     }
   }, config.NPC_AI_TICK_MS);
 }
@@ -167,6 +171,24 @@ function ensureMetaDefaults(meta, now) {
   }
   if (typeof meta.moving !== 'boolean') {
     meta.moving = false;
+  }
+  if (typeof meta.lastSentX !== 'number') {
+    meta.lastSentX = NaN;
+  }
+  if (typeof meta.lastSentY !== 'number') {
+    meta.lastSentY = NaN;
+  }
+  if (typeof meta.lastSentHp !== 'number') {
+    meta.lastSentHp = NaN;
+  }
+  if (typeof meta.lastSentDirX !== 'number') {
+    meta.lastSentDirX = NaN;
+  }
+  if (typeof meta.lastSentDirY !== 'number') {
+    meta.lastSentDirY = NaN;
+  }
+  if (typeof meta.lastSentMoving !== 'boolean') {
+    meta.lastSentMoving = null;
   }
 }
 
@@ -649,6 +671,34 @@ function performAttack({ npcId, playerId, dirX, dirY, player, stats, broadcast, 
   }
 
   broadcast(evt);
+}
+
+function shouldSendNpcState(meta, npc) {
+  const keys = ['lastSentX', 'lastSentY', 'lastSentHp', 'lastSentDirX', 'lastSentDirY', 'lastSentMoving'];
+  return [npc.x, npc.y, npc.hp, meta.dirX, meta.dirY, meta.moving].some(
+    (value, index) => value !== meta[keys[index]],
+  );
+}
+
+function sendNpcStateToClient(npc, meta, broadcast) {
+  const state = {
+    npcId: npc.id,
+    x: npc.x,
+    y: npc.y,
+    hp: npc.hp,
+    dirX: meta.dirX,
+    dirY: meta.dirY,
+    moving: meta.moving,
+  };
+
+  meta.lastSentX = npc.x;
+  meta.lastSentY = npc.y;
+  meta.lastSentHp = npc.hp;
+  meta.lastSentDirX = meta.dirX;
+  meta.lastSentDirY = meta.dirY;
+  meta.lastSentMoving = meta.moving;
+
+  broadcast({ type: 'npc_state', state });
 }
 
 module.exports = {
