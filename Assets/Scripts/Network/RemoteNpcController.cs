@@ -34,6 +34,7 @@ public class RemoteNpcController : MonoBehaviour
     private Vector2Int _desiredCell;
     private bool _hasDesiredCell;
     private bool _isMoving;
+    private bool _hasPendingMove;
     private Coroutine _moveRoutine;
 
     private EnemyAttack _attack;
@@ -122,6 +123,12 @@ public class RemoteNpcController : MonoBehaviour
         }
 
         _hasDesiredCell = true;
+        if (_isMoving)
+        {
+            _hasPendingMove = true;
+            return;
+        }
+
         TryStartMove();
     }
 
@@ -178,7 +185,13 @@ public class RemoteNpcController : MonoBehaviour
         _moveRoutine = null;
 
         if (_currentCell != _desiredCell)
-            TryStartMove();
+        {
+            if (_hasPendingMove)
+            {
+                _hasPendingMove = false;
+                TryStartMove();
+            }
+        }
     }
 
     private float ComputeDelay(Vector2Int step)
