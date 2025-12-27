@@ -469,9 +469,12 @@ function decideChaseStep({
   const predicted = predictPlayerPosition(player, config);
   let targetCell = worldToCell(predicted.x, predicted.y, config);
   const npcWorld = cellToWorld(currentCell, config);
-  const snapThreshold = config.GRID_SIZE * 0.25;
-  const closeX = Math.abs(player.x - npcWorld.x) <= snapThreshold;
-  const closeY = Math.abs(player.y - npcWorld.y) <= snapThreshold;
+  const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
+    ? config.NPC_ALIGN_SNAP_FACTOR
+    : 0.25;
+  const snapThreshold = config.GRID_SIZE * snapFactor;
+  const closeX = Math.abs(predicted.x - npcWorld.x) <= snapThreshold;
+  const closeY = Math.abs(predicted.y - npcWorld.y) <= snapThreshold;
 
   if (closeX !== closeY) {
     if (closeX) {
@@ -498,7 +501,7 @@ function decideChaseStep({
   if (DEBUG_AI) {
     console.log('[NPC AI] chase', meta.npcId || '?', { targetCell });
   }
-  return findPathTo(currentCell, targetCell, occupancy, blockedCells);
+  return findPathTo(currentCell, targetCell, occupancy, blockedCells, { forceOrtho: closeX || closeY });
 }
 
 function decideAttackStep({
@@ -608,14 +611,14 @@ function decideSearchStep({ meta, currentCell, occupancy, blockedCells }) {
   return findPathTo(currentCell, target, occupancy, blockedCells);
 }
 
-function findPathTo(currentCell, targetCell, occupancy, blockedCells) {
+function findPathTo(currentCell, targetCell, occupancy, blockedCells, options = {}) {
   if (!targetCell) return null;
   const maxNodes = MAX_PATH_NODES;
   const startKey = cellKey(currentCell);
   const goalKey = cellKey(targetCell);
   if (startKey === goalKey) return null;
   const aligned = currentCell.x === targetCell.x || currentCell.y === targetCell.y;
-  const neighborDirections = aligned ? ORTHO_DIRECTIONS : DIRECTIONS;
+  const neighborDirections = aligned || options.forceOrtho ? ORTHO_DIRECTIONS : DIRECTIONS;
 
   let goalKeys = [];
   if (isCellWalkable(targetCell, currentCell, occupancy, blockedCells)) {
