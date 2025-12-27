@@ -466,13 +466,36 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const predicted = predictPlayerPosition(player, config);
-  let targetCell = worldToCell(predicted.x, predicted.y, config);
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
     : 0.25;
   const snapThreshold = config.GRID_SIZE * snapFactor;
+  const dampenX = Math.abs(player.x - npcWorld.x) <= snapThreshold;
+  const dampenY = Math.abs(player.y - npcWorld.y) <= snapThreshold;
+  let predictedInput = player;
+
+  if (dampenX || dampenY) {
+    let vx = typeof player.vx === 'number' ? player.vx : 0;
+    let vy = typeof player.vy === 'number' ? player.vy : 0;
+    if (dampenX) {
+      vx = 0;
+    }
+    if (dampenY) {
+      vy = 0;
+    }
+    predictedInput = { ...player, vx, vy };
+    if (DEBUG_AI) {
+      console.log('[NPC AI] prediction damp', meta.npcId || '?', {
+        dampenX,
+        dampenY,
+        threshold: snapThreshold,
+      });
+    }
+  }
+
+  const predicted = predictPlayerPosition(predictedInput, config);
+  let targetCell = worldToCell(predicted.x, predicted.y, config);
   const closeX = Math.abs(predicted.x - npcWorld.x) <= snapThreshold;
   const closeY = Math.abs(predicted.y - npcWorld.y) <= snapThreshold;
 
