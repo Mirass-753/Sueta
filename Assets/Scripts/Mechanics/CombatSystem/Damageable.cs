@@ -163,7 +163,15 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
     float dmg = data.baseDamage;
     var zone = FindZone(hitCollider);
     if (zone != null)
+    {
         dmg *= zone.damageMultiplier;
+    }
+    else if (zones != null && zones.Length > 0)
+    {
+        Debug.Log(
+            $"[DMG] {name}: hit collider '{hitCollider.name}' not in zones, ignored");
+        return;
+    }
 
     // ---------- 2. Блок / парри ----------
     bool isBlocking = combatMode != null && combatMode.IsBlocking;
