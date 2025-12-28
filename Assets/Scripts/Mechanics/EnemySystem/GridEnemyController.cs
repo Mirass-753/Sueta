@@ -203,6 +203,7 @@ public class GridEnemyController : MonoBehaviour
     {
         float currentTime = Time.time;
         bool hasPlayer = sense != null && sense.HasPlayer;
+        bool hasAttackContact = HasAttackContact();
         float distanceToPlayer = hasPlayer ? sense.DistanceToPlayer() : Mathf.Infinity;
         float healthPercent = _health != null ? (_health.currentHp / _health.maxHp) : 1f;
 
@@ -242,7 +243,7 @@ public class GridEnemyController : MonoBehaviour
                         ChangeState(patrolCells != null && patrolCells.Length > 0 ? AIState.Patrol : AIState.Idle);
                     }
                 }
-                else if (distanceToPlayer <= attackRange && attack != null && attack.CanAttack)
+                else if (hasAttackContact && attack != null && attack.CanAttack)
                 {
                     ChangeState(AIState.Attack);
                 }
@@ -264,7 +265,7 @@ public class GridEnemyController : MonoBehaviour
                     {
                         ChangeState(AIState.Retreat);
                     }
-                    else if (hasPlayer && distanceToPlayer <= attackRange && attack != null && attack.CanAttack)
+                    else if (hasPlayer && hasAttackContact && attack != null && attack.CanAttack)
                     {
                         // Остаемся в атаке, если можем атаковать снова
                     }
@@ -378,6 +379,8 @@ public class GridEnemyController : MonoBehaviour
         if (sense == null || !sense.HasPlayer)
             return null;
 
+        bool hasAttackContact = HasAttackContact();
+
         // Предсказываем позицию игрока
         Vector2 predictedPos = PredictPlayerPosition();
         Vector2Int targetCell = WorldToCell(predictedPos);
@@ -387,7 +390,7 @@ public class GridEnemyController : MonoBehaviour
         int dy = targetCell.y - _currentCell.y;
         float distance = Mathf.Sqrt(dx * dx + dy * dy);
 
-        if (distance <= attackRange && attack != null && attack.CanAttack)
+        if (hasAttackContact && attack != null && attack.CanAttack)
         {
             return null; // остаемся на месте для атаки
         }
@@ -400,12 +403,13 @@ public class GridEnemyController : MonoBehaviour
         if (sense == null || !sense.HasPlayer)
             return null;
 
+        bool hasAttackContact = HasAttackContact();
         Vector2Int playerCell = sense.PlayerCell(gridSize, cellCenterOffset);
         int dx = playerCell.x - _currentCell.x;
         int dy = playerCell.y - _currentCell.y;
 
         // Если можем атаковать - атакуем
-        if (Mathf.Abs(dx) <= 1 && Mathf.Abs(dy) <= 1 && (dx != 0 || dy != 0))
+        if (hasAttackContact)
         {
             if (attack != null && attack.CanAttack && Time.time - _lastAttackTime > attackCooldownAfterMove)
             {
@@ -421,6 +425,21 @@ public class GridEnemyController : MonoBehaviour
 
         // Подходим ближе для атаки
         return FindPathTo(playerCell);
+    }
+
+    private bool HasAttackContact()
+    {
+        if (attack == null || attack.attackHitbox == null || sense == null || !sense.HasPlayer)
+            return false;
+
+        var playerColliders = sense.player.GetComponentsInChildren<Collider2D>();
+        foreach (var collider in playerColliders)
+        {
+            if (collider != null && attack.attackHitbox.IsTouching(collider))
+                return true;
+        }
+
+        return false;
     }
 
     private Vector2Int? DecideRetreatStep()

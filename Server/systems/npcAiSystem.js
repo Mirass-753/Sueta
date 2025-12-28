@@ -271,7 +271,10 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const currentCell = worldToCell(npc.x, npc.y, config);
   const playerCell = player ? worldToCell(player.x, player.y, config) : null;
-  const isAdjacent = playerCell ? areCellsAdjacent(currentCell, playerCell) : false;
+  const attackDir = player ? getAttackDirection(meta, npc, player) : { x: 0, y: 0 };
+  const hasAttackContact = player
+    ? isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config })
+    : false;
 
   if (!meta.state) {
     meta.state = patrolCells.length > 0 ? 'Patrol' : 'Idle';
@@ -300,9 +303,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
         } else {
           changeState(meta, patrolCells.length > 0 ? 'Patrol' : 'Idle', now);
         }
-      } else if (isAdjacent) {
-        changeState(meta, 'Attack', now);
-      } else if (distanceToPlayer <= config.NPC_ATTACK_RANGE && canAttack) {
+      } else if (hasAttackContact) {
         changeState(meta, 'Attack', now);
       } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD && Math.random() < config.NPC_RETREAT_CHANCE) {
         changeState(meta, 'Retreat', now);
@@ -310,11 +311,11 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
       break;
     case 'Attack':
       if (now - meta.tStateChange > config.NPC_ATTACK_COOLDOWN_AFTER_MOVE) {
-        if (hasPlayer && distanceToPlayer > config.NPC_ATTACK_RANGE) {
+        if (hasPlayer && !hasAttackContact) {
           changeState(meta, 'Chase', now);
         } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD) {
           changeState(meta, 'Retreat', now);
-        } else if (hasPlayer && distanceToPlayer <= config.NPC_ATTACK_RANGE && canAttack) {
+        } else if (hasPlayer && hasAttackContact && canAttack) {
           // stay
         } else {
           changeState(meta, 'Chase', now);
@@ -480,6 +481,8 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
+  const attackDir = getAttackDirection(meta, npc, player);
+  const hasAttackContact = isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config });
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
@@ -522,7 +525,7 @@ function decideChaseStep({
     }
   }
 
-  if (distanceToPlayer <= config.NPC_ATTACK_RANGE) {
+  if (hasAttackContact) {
     const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
     if (canAttack) {
       if (DEBUG_AI) {
@@ -557,14 +560,13 @@ function decideAttackStep({
   if (!player) return null;
 
   const playerCell = worldToCell(player.x, player.y, config);
-  const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
+  const dir = getAttackDirection(meta, npc, player);
+  const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
+  const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
-  if (adjacent && canAttack && canAttackAfterMove) {
-    const dir = getAttackDirection(meta, npc, player);
-    const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
-    const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
+  if (hasValidHit && canAttack && canAttackAfterMove) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
@@ -591,7 +593,7 @@ function decideAttackStep({
     }
   }
 
-  if (adjacent) {
+  if (hasValidHit) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack wait', meta.npcId || '?', {
         canAttack,
@@ -618,6 +620,82 @@ function decideAttackStep({
     console.log('[NPC AI] attack move', meta.npcId || '?', { playerCell });
   }
   return findPathTo(currentCell, playerCell, occupancy, blockedCells);
+}
+
+function getAttackDirection(meta, npc, player) {
+  const fallback = normalizeVector(player.x - npc.x, player.y - npc.y);
+  const hasFacing = typeof meta.dirX === 'number'
+    && typeof meta.dirY === 'number'
+    && (meta.dirX !== 0 || meta.dirY !== 0);
+  if (!hasFacing) {
+    return fallback;
+  }
+  const facing = normalizeVector(meta.dirX, meta.dirY);
+  return facing.x === 0 && facing.y === 0 ? fallback : facing;
+}
+
+function isAttackDirectionValid({ npc, player, dirX, dirY, config }) {
+  const dirLen = Math.hypot(dirX, dirY);
+  if (!npc || !player || dirLen === 0) return false;
+  const toPlayer = normalizeVector(player.x - npc.x, player.y - npc.y);
+  const dot = (dirX * toPlayer.x + dirY * toPlayer.y) / dirLen;
+  return dot >= config.NPC_ATTACK_FACING_DOT;
+}
+
+function isAttackHit({ npc, player, dirX, dirY, config }) {
+  if (!npc || !player) return false;
+  const len = Math.hypot(dirX, dirY);
+  if (len === 0) return false;
+
+  const right = { x: dirX / len, y: dirY / len };
+  const up = { x: -right.y, y: right.x };
+  const scale = typeof config.NPC_ARROW_HITBOX_SCALE === 'number' ? config.NPC_ARROW_HITBOX_SCALE : 1;
+  const halfX = (config.NPC_ARROW_HITBOX_SIZE_X * scale) / 2;
+  const halfY = (config.NPC_ARROW_HITBOX_SIZE_Y * scale) / 2;
+  const offsetX = config.NPC_ARROW_HITBOX_OFFSET_X * scale;
+  const offsetY = config.NPC_ARROW_HITBOX_OFFSET_Y * scale;
+
+  const center = {
+    x: npc.x + right.x * offsetX + up.x * offsetY,
+    y: npc.y + right.y * offsetX + up.y * offsetY,
+  };
+
+  const playerHalfX = config.PLAYER_HITBOX_SIZE_X / 2;
+  const playerHalfY = config.PLAYER_HITBOX_SIZE_Y / 2;
+  const playerCenter = {
+    x: player.x + config.PLAYER_HITBOX_OFFSET_X,
+    y: player.y + config.PLAYER_HITBOX_OFFSET_Y,
+  };
+
+  return overlapObbAabb(center, halfX, halfY, right, up, playerCenter, playerHalfX, playerHalfY);
+}
+
+function overlapObbAabb(obbCenter, obbHalfX, obbHalfY, obbRight, obbUp, aabbCenter, aabbHalfX, aabbHalfY) {
+  const axes = [
+    obbRight,
+    obbUp,
+    { x: 1, y: 0 },
+    { x: 0, y: 1 },
+  ];
+  const delta = {
+    x: aabbCenter.x - obbCenter.x,
+    y: aabbCenter.y - obbCenter.y,
+  };
+
+  for (const axis of axes) {
+    const axisLen = Math.hypot(axis.x, axis.y) || 1;
+    const ax = axis.x / axisLen;
+    const ay = axis.y / axisLen;
+    const distance = Math.abs(delta.x * ax + delta.y * ay);
+    const obbRadius = obbHalfX * Math.abs(ax * obbRight.x + ay * obbRight.y)
+      + obbHalfY * Math.abs(ax * obbUp.x + ay * obbUp.y);
+    const aabbRadius = aabbHalfX * Math.abs(ax) + aabbHalfY * Math.abs(ay);
+    if (distance > obbRadius + aabbRadius) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function decideRetreatStep({ currentCell, player, config, occupancy, blockedCells }) {
