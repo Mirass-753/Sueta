@@ -550,26 +550,33 @@ function decideAttackStep({
   const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
 
   if (adjacent && canAttack && canAttackAfterMove) {
-    const dir = normalizeVector(player.x - npc.x, player.y - npc.y);
+    const dir = getAttackDirection(meta, npc, player);
+    const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
+    const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
         dirX: dir.x,
         dirY: dir.y,
+        hasValidDirection,
+        hasValidHit,
       });
     }
-    performAttack({
-      npcId,
-      playerId: player.id,
-      dirX: dir.x,
-      dirY: dir.y,
-      player,
-      stats,
-      broadcast,
-      config,
-    });
-    meta.lastAttackTime = now;
-    return null;
+    if (hasValidDirection && hasValidHit) {
+      performAttack({
+        npcId,
+        npc,
+        playerId: player.id,
+        dirX: dir.x,
+        dirY: dir.y,
+        player,
+        stats,
+        broadcast,
+        config,
+      });
+      meta.lastAttackTime = now;
+      return null;
+    }
   }
 
   if (DEBUG_AI) {
@@ -850,7 +857,13 @@ function normalizeVector(x, y) {
   return { x: x / len, y: y / len };
 }
 
-function performAttack({ npcId, playerId, dirX, dirY, player, stats, broadcast, config }) {
+function performAttack({ npcId, npc, playerId, dirX, dirY, player, stats, broadcast, config }) {
+  if (!isAttackDirectionValid({ npc, player, dirX, dirY, config })) {
+    return;
+  }
+  if (!isAttackHit({ npc, player, dirX, dirY, config })) {
+    return;
+  }
   const oldHp = stats.getHp(playerId);
   const newHp = stats.setHp(playerId, oldHp - config.NPC_ATTACK_DAMAGE);
   const appliedDamage = Math.max(0, oldHp - newHp);
@@ -897,6 +910,62 @@ function performAttack({ npcId, playerId, dirX, dirY, player, stats, broadcast, 
   }
 
   broadcast(evt);
+}
+
+function getAttackDirection(meta, npc, player) {
+  if (!player || !npc) {
+    return { x: 0, y: 0 };
+  }
+  const hasFacing = Math.hypot(meta.dirX || 0, meta.dirY || 0) > 0.001;
+  if (hasFacing) {
+    return normalizeVector(meta.dirX, meta.dirY);
+  }
+  return normalizeVector(player.x - npc.x, player.y - npc.y);
+}
+
+function isAttackDirectionValid({ npc, player, dirX, dirY, config }) {
+  if (!npc || !player) return false;
+  const toPlayerX = player.x - npc.x;
+  const toPlayerY = player.y - npc.y;
+  const toPlayerLen = Math.hypot(toPlayerX, toPlayerY);
+  if (toPlayerLen === 0) return true;
+  const dirLen = Math.hypot(dirX, dirY);
+  if (dirLen === 0) return false;
+  const normDirX = dirX / dirLen;
+  const normDirY = dirY / dirLen;
+  const toPlayerNormX = toPlayerX / toPlayerLen;
+  const toPlayerNormY = toPlayerY / toPlayerLen;
+  const dot = normDirX * toPlayerNormX + normDirY * toPlayerNormY;
+  const maxAngleRad = (config.NPC_ATTACK_MAX_ANGLE_DEG * Math.PI) / 180;
+  const minDot = Math.cos(maxAngleRad);
+  return dot >= minDot;
+}
+
+function isAttackHit({ npc, player, dirX, dirY, config }) {
+  if (!npc || !player) return false;
+  const dirLen = Math.hypot(dirX, dirY);
+  if (dirLen === 0) return false;
+  const normDirX = dirX / dirLen;
+  const normDirY = dirY / dirLen;
+  const startX = npc.x;
+  const startY = npc.y;
+  const endX = startX + normDirX * config.NPC_ATTACK_RANGE;
+  const endY = startY + normDirY * config.NPC_ATTACK_RANGE;
+  const hitRadius = config.NPC_ATTACK_HIT_RADIUS;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const lenSq = dx * dx + dy * dy || 1;
+  const px = player.x - startX;
+  const py = player.y - startY;
+  let t = (px * dx + py * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const closestX = startX + dx * t;
+  const closestY = startY + dy * t;
+  const distX = player.x - closestX;
+  const distY = player.y - closestY;
+  const distSq = distX * distX + distY * distY;
+  return distSq <= hitRadius * hitRadius;
 }
 
 function shouldSendNpcState(meta, npc) {
