@@ -42,6 +42,7 @@ function ensureNpcMeta(id) {
       lastKnownPlayerCell: null,
       lastSeenTime: 0,
       lastAttackTime: -Infinity,
+      attackWindowUntil: -Infinity,
       lastMoveTime: -Infinity,
       targetPlayerId: null,
       dirX: 0,

@@ -166,6 +166,9 @@ function ensureMetaDefaults(meta, now) {
   if (typeof meta.lastMoveTime !== 'number') {
     meta.lastMoveTime = -Infinity;
   }
+  if (typeof meta.attackWindowUntil !== 'number') {
+    meta.attackWindowUntil = -Infinity;
+  }
   if (typeof meta.lastSeenTime !== 'number') {
     meta.lastSeenTime = 0;
   }
@@ -466,13 +469,36 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const predicted = predictPlayerPosition(player, config);
-  let targetCell = worldToCell(predicted.x, predicted.y, config);
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
     : 0.25;
   const snapThreshold = config.GRID_SIZE * snapFactor;
+  const dampenX = Math.abs(player.x - npcWorld.x) <= snapThreshold;
+  const dampenY = Math.abs(player.y - npcWorld.y) <= snapThreshold;
+  let predictedInput = player;
+
+  if (dampenX || dampenY) {
+    let vx = typeof player.vx === 'number' ? player.vx : 0;
+    let vy = typeof player.vy === 'number' ? player.vy : 0;
+    if (dampenX) {
+      vx = 0;
+    }
+    if (dampenY) {
+      vy = 0;
+    }
+    predictedInput = { ...player, vx, vy };
+    if (DEBUG_AI) {
+      console.log('[NPC AI] prediction damp', meta.npcId || '?', {
+        dampenX,
+        dampenY,
+        threshold: snapThreshold,
+      });
+    }
+  }
+
+  const predicted = predictPlayerPosition(predictedInput, config);
+  let targetCell = worldToCell(predicted.x, predicted.y, config);
   const closeX = Math.abs(predicted.x - npcWorld.x) <= snapThreshold;
   const closeY = Math.abs(predicted.y - npcWorld.y) <= snapThreshold;
 
@@ -535,15 +561,17 @@ function decideAttackStep({
         dirY: dir.y,
       });
     }
-    performAttack({
+    meta.dirX = dir.x;
+    meta.dirY = dir.y;
+    meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+      ? config.NPC_ATTACK_WINDOW_SECONDS
+      : 0.2);
+    broadcast({
+      type: 'npc_attack',
       npcId,
-      playerId: player.id,
+      targetId: player.id,
       dirX: dir.x,
       dirY: dir.y,
-      player,
-      stats,
-      broadcast,
-      config,
     });
     meta.lastAttackTime = now;
     return null;
@@ -784,55 +812,6 @@ function distanceBetween(x1, y1, x2, y2) {
 function normalizeVector(x, y) {
   const len = Math.hypot(x, y) || 1;
   return { x: x / len, y: y / len };
-}
-
-function performAttack({ npcId, playerId, dirX, dirY, player, stats, broadcast, config }) {
-  const oldHp = stats.getHp(playerId);
-  const newHp = stats.setHp(playerId, oldHp - config.NPC_ATTACK_DAMAGE);
-  const appliedDamage = Math.max(0, oldHp - newHp);
-
-  const popupX = player && typeof player.x === 'number' ? player.x : 0;
-  const popupY = player && typeof player.y === 'number' ? player.y : 0;
-
-  broadcast({
-    type: 'npc_attack',
-    npcId,
-    targetId: playerId,
-    dirX,
-    dirY,
-  });
-
-  const evt = {
-    type: 'damage',
-    sourceId: npcId,
-    targetId: playerId,
-    amount: appliedDamage,
-    hp: newHp,
-  };
-
-  if (appliedDamage > 0) {
-    const popupMsg = {
-      type: 'damage_popup',
-      amount: Math.round(appliedDamage),
-      x: popupX,
-      y: popupY,
-      z: 0,
-    };
-    broadcast(popupMsg);
-
-    const hitFxMsg = {
-      type: 'hit_fx',
-      fx: 'claws',
-      targetId: playerId,
-      zone: '',
-      x: popupX,
-      y: popupY,
-      z: 0,
-    };
-    broadcast(hitFxMsg);
-  }
-
-  broadcast(evt);
 }
 
 function shouldSendNpcState(meta, npc) {

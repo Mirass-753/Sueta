@@ -3,6 +3,17 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
     || process.env.DEBUG_AI === '1';
   const lastMoveLogAt = new Map();
 
+  function worldToCell(x, y) {
+    const fx = x / config.GRID_SIZE - config.CELL_CENTER_OFFSET_X;
+    const fy = y / config.GRID_SIZE - config.CELL_CENTER_OFFSET_Y;
+    return { x: Math.round(fx), y: Math.round(fy) };
+  }
+
+  function normalizeVector(x, y) {
+    const len = Math.hypot(x, y) || 1;
+    return { x: x / len, y: y / len };
+  }
+
   function handleMove(ws, msg) {
     if (typeof msg.id !== 'string') return;
     if (typeof msg.x !== 'number' || typeof msg.y !== 'number') return;
@@ -161,6 +172,89 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
     }
   }
 
+  function handleNpcAttackRequest(ws, msg) {
+    const npcId = typeof msg.npcId === 'string' ? msg.npcId : null;
+    const targetId = typeof msg.targetId === 'string' ? msg.targetId : null;
+
+    if (!npcId || !targetId) return;
+    if (!ws.playerId || ws.playerId !== targetId) return;
+
+    const npc = npcs.getNpc(npcId);
+    const target = players.getPlayer(targetId);
+    const meta = npcs.getNpcMeta ? npcs.getNpcMeta(npcId) : null;
+
+    if (!npc || !target) return;
+    if (meta && meta.targetPlayerId && meta.targetPlayerId !== targetId) return;
+
+    const now = Date.now() / 1000;
+    const windowUntil = meta && typeof meta.attackWindowUntil === 'number'
+      ? meta.attackWindowUntil
+      : -Infinity;
+    if (now > windowUntil) return;
+
+    const dx = target.x - npc.x;
+    const dy = target.y - npc.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance > config.NPC_ATTACK_RANGE) return;
+
+    const npcCell = worldToCell(npc.x, npc.y);
+    const targetCell = worldToCell(target.x, target.y);
+    const cellDx = targetCell.x - npcCell.x;
+    const cellDy = targetCell.y - npcCell.y;
+    const adjacent = Math.abs(cellDx) <= 1 && Math.abs(cellDy) <= 1 && (cellDx !== 0 || cellDy !== 0);
+    if (!adjacent) return;
+
+    if (meta && (meta.dirX !== 0 || meta.dirY !== 0)) {
+      const dir = normalizeVector(meta.dirX, meta.dirY);
+      const toPlayer = normalizeVector(dx, dy);
+      const facingDot = typeof config.NPC_ATTACK_FACING_DOT === 'number'
+        ? config.NPC_ATTACK_FACING_DOT
+        : 0.5;
+      if (dir.x * toPlayer.x + dir.y * toPlayer.y < facingDot) return;
+    } else {
+      return;
+    }
+
+    const oldHp = stats.getHp(targetId);
+    const newHp = stats.setHp(targetId, oldHp - config.NPC_ATTACK_DAMAGE);
+    const appliedDamage = Math.max(0, oldHp - newHp);
+
+    const evt = {
+      type: 'damage',
+      sourceId: npcId,
+      targetId,
+      amount: appliedDamage,
+      hp: newHp,
+    };
+
+    console.log('[WS] npc damage', evt);
+
+    if (appliedDamage > 0) {
+      const popupMsg = {
+        type: 'damage_popup',
+        amount: Math.round(appliedDamage),
+        x: target.x,
+        y: target.y,
+        z: 0,
+      };
+      broadcast(popupMsg);
+
+      const hitFxMsg = {
+        type: 'hit_fx',
+        fx: 'claws',
+        targetId,
+        zone: '',
+        x: target.x,
+        y: target.y,
+        z: 0,
+      };
+      broadcast(hitFxMsg);
+    }
+
+    broadcast(evt);
+  }
+
   function handleEnergyRequest(ws, msg) {
     const targetId = typeof msg.targetId === 'string' ? msg.targetId : null;
     const amount = typeof msg.amount === 'number' ? msg.amount : 0;
@@ -244,6 +338,9 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
         break;
       case 'damage_request':
         handleDamageRequest(ws, msg);
+        break;
+      case 'npc_attack_request':
+        handleNpcAttackRequest(ws, msg);
         break;
       case 'energy_request':
         handleEnergyRequest(ws, msg);

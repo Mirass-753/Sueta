@@ -42,3 +42,18 @@ public class NetMessageNpcAttack : NetMessageBase
     public float dirX;
     public float dirY;
 }
+
+[Serializable]
+public class NetMessageNpcAttackRequest : NetMessageBase
+{
+    public string npcId;
+    public string targetId;
+    public float x;
+    public float y;
+    public float z;
+
+    public NetMessageNpcAttackRequest()
+    {
+        type = "npc_attack_request";
+    }
+}

@@ -127,6 +127,30 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
         $"isNetworkEntity={isNetworkEntity}, id='{networkId}', " +
         $"healthNull={healthIsNull}, energyNull={energyIsNull}");
 
+    if (data.attackerDamageable != null)
+    {
+        var remoteNpc = data.attackerDamageable.GetComponent<RemoteNpcController>();
+        if (remoteNpc != null && isNetworkEntity && !string.IsNullOrEmpty(networkId))
+        {
+            var ws = WebSocketClient.Instance;
+            if (ws != null && !string.IsNullOrEmpty(data.attackerDamageable.networkId))
+            {
+                var req = new NetMessageNpcAttackRequest
+                {
+                    npcId = data.attackerDamageable.networkId,
+                    targetId = networkId,
+                    x = transform.position.x,
+                    y = transform.position.y,
+                    z = transform.position.z
+                };
+                string json = JsonUtility.ToJson(req);
+                Debug.Log($"[DMG-NET] SEND npc_attack_request: {json}");
+                ws.Send(json);
+            }
+            return;
+        }
+    }
+
     // Локальный (несетевой) объект без health — игнорируем
     if (healthIsNull && !isNetworkEntity)
     {
