@@ -649,11 +649,10 @@ function isAttackHit({ npc, player, dirX, dirY, config }) {
 
   const right = { x: dirX / len, y: dirY / len };
   const up = { x: -right.y, y: right.x };
-  const scale = typeof config.NPC_ARROW_HITBOX_SCALE === 'number' ? config.NPC_ARROW_HITBOX_SCALE : 1;
-  const halfX = (config.NPC_ARROW_HITBOX_SIZE_X * scale) / 2;
-  const halfY = (config.NPC_ARROW_HITBOX_SIZE_Y * scale) / 2;
-  const offsetX = config.NPC_ARROW_HITBOX_OFFSET_X * scale;
-  const offsetY = config.NPC_ARROW_HITBOX_OFFSET_Y * scale;
+  const halfX = config.NPC_ARROW_HITBOX_SIZE_X / 2;
+  const halfY = config.NPC_ARROW_HITBOX_SIZE_Y / 2;
+  const offsetX = config.NPC_ARROW_HITBOX_OFFSET_X;
+  const offsetY = config.NPC_ARROW_HITBOX_OFFSET_Y;
 
   const center = {
     x: npc.x + right.x * offsetX + up.x * offsetY,
