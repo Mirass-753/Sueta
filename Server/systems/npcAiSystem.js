@@ -166,6 +166,9 @@ function ensureMetaDefaults(meta, now) {
   if (typeof meta.lastMoveTime !== 'number') {
     meta.lastMoveTime = -Infinity;
   }
+  if (typeof meta.attackWindowUntil !== 'number') {
+    meta.attackWindowUntil = -Infinity;
+  }
   if (typeof meta.lastSeenTime !== 'number') {
     meta.lastSeenTime = 0;
   }
@@ -477,14 +480,6 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const playerCell = worldToCell(player.x, player.y, config);
-  if (areCellsAdjacent(currentCell, playerCell)) {
-    if (DEBUG_AI) {
-      console.log('[NPC AI] chase adjacent hold', meta.npcId || '?', { playerCell });
-    }
-    return null;
-  }
-
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
@@ -603,6 +598,19 @@ function decideAttackStep({
         canAttackAfterMove,
       });
     }
+    meta.dirX = dir.x;
+    meta.dirY = dir.y;
+    meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+      ? config.NPC_ATTACK_WINDOW_SECONDS
+      : 0.2);
+    broadcast({
+      type: 'npc_attack',
+      npcId,
+      targetId: player.id,
+      dirX: dir.x,
+      dirY: dir.y,
+    });
+    meta.lastAttackTime = now;
     return null;
   }
 
@@ -882,117 +890,6 @@ function distanceBetween(x1, y1, x2, y2) {
 function normalizeVector(x, y) {
   const len = Math.hypot(x, y) || 1;
   return { x: x / len, y: y / len };
-}
-
-function performAttack({ npcId, npc, playerId, dirX, dirY, player, stats, broadcast, config }) {
-  if (!isAttackDirectionValid({ npc, player, dirX, dirY, config })) {
-    return;
-  }
-  if (!isAttackHit({ npc, player, dirX, dirY, config })) {
-    return;
-  }
-  const oldHp = stats.getHp(playerId);
-  const newHp = stats.setHp(playerId, oldHp - config.NPC_ATTACK_DAMAGE);
-  const appliedDamage = Math.max(0, oldHp - newHp);
-
-  const popupX = player && typeof player.x === 'number' ? player.x : 0;
-  const popupY = player && typeof player.y === 'number' ? player.y : 0;
-
-  broadcast({
-    type: 'npc_attack',
-    npcId,
-    targetId: playerId,
-    dirX,
-    dirY,
-  });
-
-  const evt = {
-    type: 'damage',
-    sourceId: npcId,
-    targetId: playerId,
-    amount: appliedDamage,
-    hp: newHp,
-  };
-
-  if (appliedDamage > 0) {
-    const popupMsg = {
-      type: 'damage_popup',
-      amount: Math.round(appliedDamage),
-      x: popupX,
-      y: popupY,
-      z: 0,
-    };
-    broadcast(popupMsg);
-
-    const hitFxMsg = {
-      type: 'hit_fx',
-      fx: 'claws',
-      targetId: playerId,
-      zone: '',
-      x: popupX,
-      y: popupY,
-      z: 0,
-    };
-    broadcast(hitFxMsg);
-  }
-
-  broadcast(evt);
-}
-
-function getAttackDirection(meta, npc, player) {
-  if (!player || !npc) {
-    return { x: 0, y: 0 };
-  }
-  const hasFacing = Math.hypot(meta.dirX || 0, meta.dirY || 0) > 0.001;
-  if (hasFacing) {
-    return normalizeVector(meta.dirX, meta.dirY);
-  }
-  return normalizeVector(player.x - npc.x, player.y - npc.y);
-}
-
-function isAttackDirectionValid({ npc, player, dirX, dirY, config }) {
-  if (!npc || !player) return false;
-  const toPlayerX = player.x - npc.x;
-  const toPlayerY = player.y - npc.y;
-  const toPlayerLen = Math.hypot(toPlayerX, toPlayerY);
-  if (toPlayerLen === 0) return true;
-  const dirLen = Math.hypot(dirX, dirY);
-  if (dirLen === 0) return false;
-  const normDirX = dirX / dirLen;
-  const normDirY = dirY / dirLen;
-  const toPlayerNormX = toPlayerX / toPlayerLen;
-  const toPlayerNormY = toPlayerY / toPlayerLen;
-  const dot = normDirX * toPlayerNormX + normDirY * toPlayerNormY;
-  const maxAngleRad = (config.NPC_ATTACK_MAX_ANGLE_DEG * Math.PI) / 180;
-  const minDot = Math.cos(maxAngleRad);
-  return dot >= minDot;
-}
-
-function isAttackHit({ npc, player, dirX, dirY, config }) {
-  if (!npc || !player) return false;
-  const dirLen = Math.hypot(dirX, dirY);
-  if (dirLen === 0) return false;
-  const normDirX = dirX / dirLen;
-  const normDirY = dirY / dirLen;
-  const startX = npc.x;
-  const startY = npc.y;
-  const endX = startX + normDirX * config.NPC_ATTACK_RANGE;
-  const endY = startY + normDirY * config.NPC_ATTACK_RANGE;
-  const hitRadius = config.NPC_ATTACK_HIT_RADIUS;
-
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const lenSq = dx * dx + dy * dy || 1;
-  const px = player.x - startX;
-  const py = player.y - startY;
-  let t = (px * dx + py * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  const closestX = startX + dx * t;
-  const closestY = startY + dy * t;
-  const distX = player.x - closestX;
-  const distY = player.y - closestY;
-  const distSq = distX * distX + distY * distY;
-  return distSq <= hitRadius * hitRadius;
 }
 
 function shouldSendNpcState(meta, npc) {
