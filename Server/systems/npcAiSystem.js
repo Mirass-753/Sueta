@@ -266,6 +266,9 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
   const hasPlayer = !!player;
   const patrolCells = Array.isArray(npc.patrolCells) ? npc.patrolCells : [];
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
+  const currentCell = worldToCell(npc.x, npc.y, config);
+  const playerCell = player ? worldToCell(player.x, player.y, config) : null;
+  const isAdjacent = playerCell ? areCellsAdjacent(currentCell, playerCell) : false;
 
   if (!meta.state) {
     meta.state = patrolCells.length > 0 ? 'Patrol' : 'Idle';
@@ -294,6 +297,8 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
         } else {
           changeState(meta, patrolCells.length > 0 ? 'Patrol' : 'Idle', now);
         }
+      } else if (isAdjacent) {
+        changeState(meta, 'Attack', now);
       } else if (distanceToPlayer <= config.NPC_ATTACK_RANGE && canAttack) {
         changeState(meta, 'Attack', now);
       } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD && Math.random() < config.NPC_RETREAT_CHANCE) {
@@ -348,6 +353,12 @@ function changeState(meta, next, now) {
   }
   meta.state = next;
   meta.tStateChange = now;
+}
+
+function areCellsAdjacent(a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0);
 }
 
 function decideAction({
@@ -466,6 +477,14 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
+  const playerCell = worldToCell(player.x, player.y, config);
+  if (areCellsAdjacent(currentCell, playerCell)) {
+    if (DEBUG_AI) {
+      console.log('[NPC AI] chase adjacent hold', meta.npcId || '?', { playerCell });
+    }
+    return null;
+  }
+
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
@@ -543,9 +562,7 @@ function decideAttackStep({
   if (!player) return null;
 
   const playerCell = worldToCell(player.x, player.y, config);
-  const dx = playerCell.x - currentCell.x;
-  const dy = playerCell.y - currentCell.y;
-  const adjacent = Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0);
+  const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
 
@@ -577,6 +594,16 @@ function decideAttackStep({
       meta.lastAttackTime = now;
       return null;
     }
+  }
+
+  if (adjacent) {
+    if (DEBUG_AI) {
+      console.log('[NPC AI] attack wait', meta.npcId || '?', {
+        canAttack,
+        canAttackAfterMove,
+      });
+    }
+    return null;
   }
 
   if (DEBUG_AI) {
