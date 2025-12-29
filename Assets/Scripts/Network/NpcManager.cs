@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -169,7 +170,22 @@ public class NpcManager : MonoBehaviour
             var controller = npc.GetComponent<RemoteNpcController>();
             if (controller != null)
             {
-                controller.PlayAttack(new Vector2(msg.dirX, msg.dirY));
+                controller.PlayAttack($"npc-{msg.npcId}-{System.Guid.NewGuid()}", new Vector2(msg.dirX, msg.dirY));
+            }
+        }
+    }
+
+    public void OnAttackStart(NetMessageAttackStart msg)
+    {
+        if (msg == null || string.IsNullOrEmpty(msg.sourceId))
+            return;
+
+        if (_npcs.TryGetValue(msg.sourceId, out var npc) && npc != null)
+        {
+            var controller = npc.GetComponent<RemoteNpcController>();
+            if (controller != null)
+            {
+                controller.PlayAttack(msg.attackId, new Vector2(msg.dirX, msg.dirY));
             }
         }
     }

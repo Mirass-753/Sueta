@@ -1,4 +1,4 @@
-function createHandlers({ players, npcs, stats, config, broadcast }) {
+function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
   const debugAi = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
     || process.env.DEBUG_AI === '1';
   const lastMoveLogAt = new Map();
@@ -172,6 +172,140 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
     }
   }
 
+  function handlePlayerAttackRequest(ws, msg) {
+    if (!ws.playerId) return;
+
+    const dirX = typeof msg.dirX === 'number' ? msg.dirX : 0;
+    const dirY = typeof msg.dirY === 'number' ? msg.dirY : 0;
+    const weapon = typeof msg.weapon === 'string' ? msg.weapon : 'claws';
+
+    const attackId = attacks.createAttack({
+      sourceId: ws.playerId,
+      dirX,
+      dirY,
+      weapon,
+      windowSeconds: config.PLAYER_ATTACK_WINDOW_SECONDS,
+    });
+
+    broadcast({
+      type: 'attack_start',
+      attackId,
+      sourceId: ws.playerId,
+      targetId: null,
+      dirX,
+      dirY,
+      weapon,
+    });
+  }
+
+  function handleAttackHitReport(ws, msg) {
+    const attackId = typeof msg.attackId === 'string' ? msg.attackId : null;
+    const sourceId = typeof msg.sourceId === 'string' ? msg.sourceId : null;
+    const targetId = typeof msg.targetId === 'string' ? msg.targetId : null;
+    const hitPart = typeof msg.hitPart === 'string' ? msg.hitPart : '';
+
+    if (!attackId || !sourceId || !targetId) return;
+
+    const attack = attacks.getAttack(attackId);
+    if (!attack || attack.sourceId !== sourceId) return;
+    if (attack.targetId && attack.targetId !== targetId) return;
+
+    const now = Date.now() / 1000;
+    if (!attacks.isAttackActive(attack, now)) {
+      attacks.removeAttack(attackId);
+      return;
+    }
+
+    const sourceNpc = npcs.hasNpc(sourceId) ? npcs.getNpc(sourceId) : null;
+    const sourcePlayer = players.getPlayer(sourceId);
+    const targetNpc = npcs.hasNpc(targetId) ? npcs.getNpc(targetId) : null;
+    const targetPlayer = players.getPlayer(targetId);
+
+    const source = sourceNpc || sourcePlayer;
+    const target = targetNpc || targetPlayer;
+
+    if (!source || !target) return;
+
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const distance = Math.hypot(dx, dy);
+
+    const range = sourceNpc ? config.NPC_ATTACK_RANGE : config.PLAYER_ATTACK_RANGE;
+    if (distance > range) return;
+
+    const dirX = typeof attack.dirX === 'number' ? attack.dirX : 0;
+    const dirY = typeof attack.dirY === 'number' ? attack.dirY : 0;
+    const dirLen = Math.hypot(dirX, dirY);
+    if (dirLen === 0) return;
+
+    const toTarget = normalizeVector(dx, dy);
+    const facingDot = sourceNpc ? config.NPC_ATTACK_FACING_DOT : config.PLAYER_ATTACK_FACING_DOT;
+    const dot = (dirX * toTarget.x + dirY * toTarget.y) / dirLen;
+    if (dot < facingDot) return;
+
+    const baseDamage = sourceNpc ? config.NPC_ATTACK_DAMAGE : config.PLAYER_ATTACK_DAMAGE;
+    const partMultiplier = config.HIT_PART_MULTIPLIERS[hitPart] || 1;
+    const rawDamage = baseDamage * partMultiplier;
+
+    const oldHp = stats.getHp(targetId);
+    const newHp = stats.setHp(targetId, oldHp - rawDamage);
+    const appliedDamage = Math.max(0, oldHp - newHp);
+
+    const evt = {
+      type: 'damage',
+      sourceId,
+      targetId,
+      amount: appliedDamage,
+      hp: newHp,
+      hitPart,
+    };
+
+    console.log('[WS] attack damage', evt);
+
+    if (appliedDamage > 0) {
+      const popupX = typeof msg.x === 'number' ? msg.x : target.x;
+      const popupY = typeof msg.y === 'number' ? msg.y : target.y;
+      const popupZ = typeof msg.z === 'number' ? msg.z : 0;
+
+      broadcast({
+        type: 'damage_popup',
+        amount: Math.round(appliedDamage),
+        x: popupX,
+        y: popupY,
+        z: popupZ,
+      });
+
+      broadcast({
+        type: 'hit_fx',
+        fx: 'claws',
+        targetId,
+        zone: hitPart,
+        x: popupX,
+        y: popupY,
+        z: popupZ,
+      });
+    }
+
+    broadcast(evt);
+
+    if (targetNpc) {
+      const updated = {
+        x: targetNpc.x,
+        y: targetNpc.y,
+        hp: newHp,
+      };
+      npcs.setNpc(targetId, updated);
+
+      if (newHp <= 0) {
+        npcs.deleteNpc(targetId);
+        stats.deleteHp(targetId);
+        broadcast({ type: 'npc_despawn', npcId: targetId });
+      }
+    }
+
+    attacks.removeAttack(attackId);
+  }
+
   function handleNpcAttackRequest(ws, msg) {
     const npcId = typeof msg.npcId === 'string' ? msg.npcId : null;
     const targetId = typeof msg.targetId === 'string' ? msg.targetId : null;
@@ -338,6 +472,12 @@ function createHandlers({ players, npcs, stats, config, broadcast }) {
         break;
       case 'damage_request':
         handleDamageRequest(ws, msg);
+        break;
+      case 'player_attack_request':
+        handlePlayerAttackRequest(ws, msg);
+        break;
+      case 'attack_hit_report':
+        handleAttackHitReport(ws, msg);
         break;
       case 'npc_attack_request':
         handleNpcAttackRequest(ws, msg);

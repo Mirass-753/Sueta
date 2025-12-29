@@ -20,7 +20,7 @@ const DIAGONAL_COST = Math.SQRT2;
 const DEBUG_AI = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
   || process.env.DEBUG_AI === '1';
 
-function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
+function startNpcAiLoop({ npcs, players, stats, config, attacks, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
     return;
   }
@@ -92,6 +92,7 @@ function startNpcAiLoop({ npcs, players, stats, config, broadcast }) {
         occupancy,
         blockedCells,
         stats,
+        attacks,
         broadcast,
       });
 
@@ -378,6 +379,7 @@ function decideAction({
   occupancy,
   blockedCells,
   stats,
+  attacks,
   broadcast,
 }) {
   if (DEBUG_AI) {
@@ -415,6 +417,7 @@ function decideAction({
         blockedCells,
         now,
         stats,
+        attacks,
         broadcast,
       });
     case 'Retreat':
@@ -555,6 +558,7 @@ function decideAttackStep({
   blockedCells,
   now,
   stats,
+  attacks,
   broadcast,
 }) {
   if (!player) return null;
@@ -577,43 +581,31 @@ function decideAttackStep({
       });
     }
     if (hasValidDirection && hasValidHit) {
-      performAttack({
-        npcId,
-        npc,
-        playerId: player.id,
+      const attackId = attacks.createAttack({
+        sourceId: npcId,
+        targetId: player.id,
         dirX: dir.x,
         dirY: dir.y,
-        player,
-        stats,
-        broadcast,
-        config,
+        weapon: 'claws',
+        windowSeconds: config.NPC_ATTACK_WINDOW_SECONDS,
+      });
+      meta.dirX = dir.x;
+      meta.dirY = dir.y;
+      meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+        ? config.NPC_ATTACK_WINDOW_SECONDS
+        : 0.2);
+      broadcast({
+        type: 'attack_start',
+        attackId,
+        sourceId: npcId,
+        targetId: player.id,
+        dirX: dir.x,
+        dirY: dir.y,
+        weapon: 'claws',
       });
       meta.lastAttackTime = now;
       return null;
     }
-  }
-
-  if (hasValidHit) {
-    if (DEBUG_AI) {
-      console.log('[NPC AI] attack wait', meta.npcId || '?', {
-        canAttack,
-        canAttackAfterMove,
-      });
-    }
-    meta.dirX = dir.x;
-    meta.dirY = dir.y;
-    meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
-      ? config.NPC_ATTACK_WINDOW_SECONDS
-      : 0.2);
-    broadcast({
-      type: 'npc_attack',
-      npcId,
-      targetId: player.id,
-      dirX: dir.x,
-      dirY: dir.y,
-    });
-    meta.lastAttackTime = now;
-    return null;
   }
 
   if (DEBUG_AI) {
