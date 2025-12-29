@@ -117,7 +117,7 @@ public class RemoteNpcController : MonoBehaviour
         }
     }
 
-    public void PlayAttack(Vector2 direction)
+    public void PlayAttack(string attackId, Vector2 direction)
     {
         if (_arrow != null && direction != Vector2.zero)
         {
@@ -130,8 +130,20 @@ public class RemoteNpcController : MonoBehaviour
 
         if (_attack != null)
         {
+            if (!string.IsNullOrEmpty(attackId))
+                AttackContextRegistry.SetAttack(_npcId, attackId);
             _attack.TryAttack(direction);
+            StartCoroutine(ClearAttackAfterWindow(attackId, _attack.attackWindowSeconds));
         }
+    }
+
+    private IEnumerator ClearAttackAfterWindow(string attackId, float delaySeconds)
+    {
+        if (delaySeconds > 0f)
+            yield return new WaitForSeconds(delaySeconds);
+
+        if (!string.IsNullOrEmpty(attackId))
+            AttackContextRegistry.ClearAttack(_npcId, attackId);
     }
 
     private void SetDesiredCell(Vector3 position, bool force)

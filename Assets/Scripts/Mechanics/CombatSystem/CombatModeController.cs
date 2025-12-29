@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
@@ -72,6 +73,7 @@ public float inputBufferSeconds = 0.25f;
     // для управления автоатакой при удержании
     private bool _attackKeyHeld;
     private float _nextAttackTime;
+    private string _currentAttackId;
 
     public bool IsBlocking => _isBlocking;
     public bool IsInParryWindow => _isBlocking && (Time.time - _blockStartTime) <= parryWindowSeconds;
@@ -203,7 +205,7 @@ public float inputBufferSeconds = 0.25f;
             // первый кадр нажатия – атака сразу
             if (!_attackKeyHeld || Time.time >= _nextAttackTime)
             {
-                StartAttackWindow();
+                RequestAttackStart();
                 _nextAttackTime = Time.time + attackHoldInterval;
             }
         }
@@ -234,6 +236,11 @@ public float inputBufferSeconds = 0.25f;
         SetHitboxActive(true);
         yield return new WaitForSeconds(attackWindowSeconds);
         SetHitboxActive(false);
+        if (!string.IsNullOrEmpty(_currentAttackId))
+        {
+            AttackContextRegistry.ClearAttack(PlayerController.LocalPlayerId, _currentAttackId);
+            _currentAttackId = null;
+        }
         _attackRoutine = null;
     }
 
@@ -241,6 +248,46 @@ public float inputBufferSeconds = 0.25f;
     {
         if (attackHitbox != null)
             attackHitbox.enabled = active;
+    }
+
+    private void RequestAttackStart()
+    {
+        var ws = WebSocketClient.Instance;
+        Vector2 dir = arrowController != null && arrowController.Direction != Vector2.zero
+            ? arrowController.Direction
+            : Vector2.right;
+        dir = dir.normalized;
+
+        if (ws == null)
+        {
+            StartAttackWindowFromServer($"local-{Guid.NewGuid()}", dir);
+            return;
+        }
+
+        var req = new NetMessagePlayerAttackRequest
+        {
+            dirX = dir.x,
+            dirY = dir.y,
+            weapon = "claws"
+        };
+        string json = JsonUtility.ToJson(req);
+        ws.Send(json);
+    }
+
+    public void StartAttackWindowFromServer(string attackId, Vector2 direction)
+    {
+        if (string.IsNullOrEmpty(attackId))
+            return;
+
+        _currentAttackId = attackId;
+        AttackContextRegistry.SetAttack(PlayerController.LocalPlayerId, attackId);
+        StartAttackWindow();
+
+        if (arrowController != null && direction != Vector2.zero)
+        {
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            arrowController.SetAngle(angle);
+        }
     }
 
     // ============ ДВИЖЕНИЕ В БОЮ ============
