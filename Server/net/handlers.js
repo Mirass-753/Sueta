@@ -173,14 +173,16 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
   }
 
   function handlePlayerAttackRequest(ws, msg) {
-    if (!ws.playerId) return;
+    const sourceId = ws.playerId || (typeof msg.sourceId === 'string' ? msg.sourceId : null);
+    if (!sourceId) return;
+    if (!ws.playerId) ws.playerId = sourceId;
 
     const dirX = typeof msg.dirX === 'number' ? msg.dirX : 0;
     const dirY = typeof msg.dirY === 'number' ? msg.dirY : 0;
     const weapon = typeof msg.weapon === 'string' ? msg.weapon : 'claws';
 
     const attackId = attacks.createAttack({
-      sourceId: ws.playerId,
+      sourceId,
       dirX,
       dirY,
       weapon,
@@ -190,7 +192,7 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     broadcast({
       type: 'attack_start',
       attackId,
-      sourceId: ws.playerId,
+      sourceId,
       targetId: null,
       dirX,
       dirY,

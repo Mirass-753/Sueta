@@ -75,7 +75,6 @@ public class RemoteNpcController : MonoBehaviour
         if (_attack != null && _attack.attackHitbox != null)
         {
             _attack.attackHitbox.enabled = false;
-            _attack.attackHitbox = null;
         }
 
         if (_arrow != null)

@@ -266,6 +266,7 @@ public float inputBufferSeconds = 0.25f;
 
         var req = new NetMessagePlayerAttackRequest
         {
+            sourceId = PlayerController.LocalPlayerId,
             dirX = dir.x,
             dirY = dir.y,
             weapon = "claws"

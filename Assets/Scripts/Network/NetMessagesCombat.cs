@@ -3,6 +3,7 @@ using System;
 [Serializable]
 public class NetMessagePlayerAttackRequest : NetMessageBase
 {
+    public string sourceId;
     public float dirX;
     public float dirY;
     public string weapon;
