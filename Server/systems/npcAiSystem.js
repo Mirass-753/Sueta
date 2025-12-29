@@ -272,7 +272,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const currentCell = worldToCell(npc.x, npc.y, config);
   const playerCell = player ? worldToCell(player.x, player.y, config) : null;
-  const attackDir = player ? getAttackDirection(meta, npc, player) : { x: 0, y: 0 };
+  const attackDir = player ? getAttackDirection(meta, npc, player, config) : { x: 0, y: 0 };
   const hasAttackContact = player
     ? isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config })
     : false;
@@ -484,7 +484,7 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const attackDir = getAttackDirection(meta, npc, player);
+  const attackDir = getAttackDirection(meta, npc, player, config);
   const hasAttackContact = isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config });
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
@@ -566,7 +566,7 @@ function decideAttackStep({
   const playerCell = worldToCell(player.x, player.y, config);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
-  const dir = getAttackDirection(meta, npc, player);
+  const dir = getAttackDirection(meta, npc, player, config);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
   const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
@@ -614,7 +614,7 @@ function decideAttackStep({
   return findPathTo(currentCell, playerCell, occupancy, blockedCells);
 }
 
-function getAttackDirection(meta, npc, player) {
+function getAttackDirection(meta, npc, player, config) {
   const fallback = normalizeVector(player.x - npc.x, player.y - npc.y);
   const hasFacing = typeof meta.dirX === 'number'
     && typeof meta.dirY === 'number'
@@ -623,7 +623,16 @@ function getAttackDirection(meta, npc, player) {
     return fallback;
   }
   const facing = normalizeVector(meta.dirX, meta.dirY);
-  return facing.x === 0 && facing.y === 0 ? fallback : facing;
+  if (facing.x === 0 && facing.y === 0) {
+    return fallback;
+  }
+  if (config && typeof config.NPC_ATTACK_FACING_DOT === 'number') {
+    const dot = facing.x * fallback.x + facing.y * fallback.y;
+    if (dot < config.NPC_ATTACK_FACING_DOT) {
+      return fallback;
+    }
+  }
+  return facing;
 }
 
 function isAttackDirectionValid({ npc, player, dirX, dirY, config }) {
