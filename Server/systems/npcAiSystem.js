@@ -120,8 +120,6 @@ function startNpcAiLoop({ npcs, players, stats, config, attacks, broadcast }) {
           console.log('[NPC AI] stop', npcId, { at: currentCell });
         }
         meta.moving = false;
-        meta.dirX = 0;
-        meta.dirY = 0;
       }
 
       if (shouldSendNpcState(meta, npc)) {
@@ -269,12 +267,13 @@ function selectTarget({ players, stats, config, meta, npcId, npcX, npcY }) {
 function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now, config }) {
   const hasPlayer = !!player;
   const patrolCells = Array.isArray(npc.patrolCells) ? npc.patrolCells : [];
-  const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
-  const currentCell = worldToCell(npc.x, npc.y, config);
-  const playerCell = player ? worldToCell(player.x, player.y, config) : null;
-  const attackDir = player ? getAttackDirection(meta, npc, player, config) : { x: 0, y: 0 };
-  const hasAttackContact = player
-    ? isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config })
+  const npcCell = worldToCell(npc.x, npc.y, config);
+  const playerCell = hasPlayer ? worldToCell(player.x, player.y, config) : null;
+  const adjacent = playerCell ? areCellsAdjacent(npcCell, playerCell) : false;
+  const facingDir = player ? getSnappedFacingDirection(npc, player) : { x: 0, y: 0 };
+  const hasStopRange = adjacent;
+  const hasValidDirection = player
+    ? isAttackDirectionValid({ npc, player, dirX: facingDir.x, dirY: facingDir.y, config })
     : false;
 
   if (!meta.state) {
@@ -304,7 +303,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
         } else {
           changeState(meta, patrolCells.length > 0 ? 'Patrol' : 'Idle', now);
         }
-      } else if (hasAttackContact) {
+      } else if (adjacent && hasValidDirection) {
         changeState(meta, 'Attack', now);
       } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD && Math.random() < config.NPC_RETREAT_CHANCE) {
         changeState(meta, 'Retreat', now);
@@ -312,11 +311,11 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
       break;
     case 'Attack':
       if (now - meta.tStateChange > config.NPC_ATTACK_COOLDOWN_AFTER_MOVE) {
-        if (hasPlayer && !hasAttackContact) {
+        if (hasPlayer && !hasStopRange) {
           changeState(meta, 'Chase', now);
         } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD) {
           changeState(meta, 'Retreat', now);
-        } else if (hasPlayer && hasAttackContact && canAttack) {
+        } else if (hasPlayer && hasStopRange) {
           // stay
         } else {
           changeState(meta, 'Chase', now);
@@ -484,8 +483,13 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const attackDir = getAttackDirection(meta, npc, player, config);
-  const hasAttackContact = isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config });
+  const playerCell = worldToCell(player.x, player.y, config);
+  const adjacent = areCellsAdjacent(currentCell, playerCell);
+  if (adjacent) {
+    updateFacingTowardsTarget(meta, npc, player);
+    return null;
+  }
+
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
@@ -528,19 +532,6 @@ function decideChaseStep({
     }
   }
 
-  if (hasAttackContact) {
-    const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
-    if (canAttack) {
-      if (DEBUG_AI) {
-        console.log('[NPC AI] chase hold', meta.npcId || '?', {
-          distanceToPlayer,
-          attackRange: config.NPC_ATTACK_RANGE,
-        });
-      }
-      return null;
-    }
-  }
-
   if (DEBUG_AI) {
     console.log('[NPC AI] chase', meta.npcId || '?', { targetCell });
   }
@@ -564,48 +555,48 @@ function decideAttackStep({
   if (!player) return null;
 
   const playerCell = worldToCell(player.x, player.y, config);
+  const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
-  const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
-  const dir = getAttackDirection(meta, npc, player, config);
+  const dir = updateFacingTowardsTarget(meta, npc, player);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
-  const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
-  if (hasValidHit && canAttack && canAttackAfterMove) {
+  if (adjacent && canAttack && hasValidDirection) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
         dirX: dir.x,
         dirY: dir.y,
         hasValidDirection,
-        hasValidHit,
       });
     }
-    if (hasValidDirection && hasValidHit) {
-      const attackId = attacks.createAttack({
-        sourceId: npcId,
-        targetId: player.id,
-        dirX: dir.x,
-        dirY: dir.y,
-        weapon: 'claws',
-        windowSeconds: config.NPC_ATTACK_WINDOW_SECONDS,
-      });
-      meta.dirX = dir.x;
-      meta.dirY = dir.y;
-      meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
-        ? config.NPC_ATTACK_WINDOW_SECONDS
-        : 0.2);
-      broadcast({
-        type: 'attack_start',
-        attackId,
-        sourceId: npcId,
-        targetId: player.id,
-        dirX: dir.x,
-        dirY: dir.y,
-        weapon: 'claws',
-      });
-      meta.lastAttackTime = now;
-      return null;
-    }
+    const attackId = attacks.createAttack({
+      sourceId: npcId,
+      targetId: player.id,
+      dirX: dir.x,
+      dirY: dir.y,
+      weapon: 'claws',
+      windowSeconds: config.NPC_ATTACK_WINDOW_SECONDS,
+    });
+    meta.dirX = dir.x;
+    meta.dirY = dir.y;
+    meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+      ? config.NPC_ATTACK_WINDOW_SECONDS
+      : 0.2);
+    broadcast({
+      type: 'attack_start',
+      attackId,
+      sourceId: npcId,
+      targetId: player.id,
+      dirX: dir.x,
+      dirY: dir.y,
+      weapon: 'claws',
+    });
+    meta.lastAttackTime = now;
+    return null;
+  }
+
+  if (adjacent) {
+    return null;
   }
 
   if (DEBUG_AI) {
@@ -968,6 +959,42 @@ function distanceBetween(x1, y1, x2, y2) {
 function normalizeVector(x, y) {
   const len = Math.hypot(x, y) || 1;
   return { x: x / len, y: y / len };
+}
+
+function getAttackRangeStart(config) {
+  if (config && typeof config.NPC_ATTACK_RANGE_START === 'number') {
+    return config.NPC_ATTACK_RANGE_START;
+  }
+  return config.NPC_ATTACK_RANGE;
+}
+
+function getAttackStopRange(config) {
+  if (config && typeof config.NPC_ATTACK_STOP_RANGE === 'number') {
+    return config.NPC_ATTACK_STOP_RANGE;
+  }
+  return config.NPC_ATTACK_RANGE;
+}
+
+function getSnappedFacingDirection(npc, player) {
+  const toPlayer = normalizeVector(player.x - npc.x, player.y - npc.y);
+  let best = null;
+  let bestDot = -Infinity;
+  for (const dir of DIRECTIONS) {
+    const norm = normalizeVector(dir.x, dir.y);
+    const dot = norm.x * toPlayer.x + norm.y * toPlayer.y;
+    if (dot > bestDot) {
+      bestDot = dot;
+      best = norm;
+    }
+  }
+  return best || { x: 0, y: 0 };
+}
+
+function updateFacingTowardsTarget(meta, npc, player) {
+  const snapped = getSnappedFacingDirection(npc, player);
+  meta.dirX = snapped.x;
+  meta.dirY = snapped.y;
+  return snapped;
 }
 
 function shouldSendNpcState(meta, npc) {
