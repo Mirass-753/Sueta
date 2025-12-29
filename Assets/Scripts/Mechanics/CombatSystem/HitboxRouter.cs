@@ -56,8 +56,21 @@ public class HitboxRouter : MonoBehaviour
     }
 
     // 4. собираем данные атаки
+    string attackId = null;
+    if (_attackerDamageable != null && _attackerDamageable.isNetworkEntity)
+    {
+        attackId = AttackContextRegistry.GetAttackId(_attackerDamageable.networkId);
+        if (string.IsNullOrEmpty(attackId))
+        {
+            Debug.LogWarning(
+                $"[HITBOX] No active attack for attacker id='{_attackerDamageable.networkId}', hit ignored");
+            return;
+        }
+    }
+
     AttackData data = new AttackData
     {
+        attackId           = attackId,
         baseDamage         = baseDamage,
         direction          = transform.right,
         attacker           = attackerRoot != null ? attackerRoot : transform,

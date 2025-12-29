@@ -3,6 +3,7 @@ const config = require('./config/constants');
 const players = require('./state/players');
 const npcs = require('./state/npcs');
 const stats = require('./state/stats');
+const attacks = require('./state/attacks');
 const { createBroadcaster } = require('./net/broadcast');
 const { createHandlers } = require('./net/handlers');
 const { startEnergyRegen } = require('./systems/energyRegenSystem');
@@ -20,12 +21,13 @@ const handlers = createHandlers({
   players,
   npcs,
   stats,
+  attacks,
   config,
   broadcast: broadcaster.broadcast,
 });
 startEnergyRegen({ stats, config, broadcast: broadcaster.broadcast, npcs, players });
 startNpcBroadcast({ npcs, config, broadcast: broadcaster.broadcast });
-startNpcAiLoop({ npcs, players, stats, config, broadcast: broadcaster.broadcast });
+startNpcAiLoop({ npcs, players, stats, attacks, config, broadcast: broadcaster.broadcast });
 
 wss.on('connection', (ws, req) => {
   const url = req?.url || '';

@@ -68,6 +68,7 @@ public static class NetworkMessageHandler
             case "npc_state":     HandleNpcState(json);     break;
             case "npc_attack":    HandleNpcAttack(json);    break;
             case "npc_despawn":   HandleNpcDespawn(json);   break;
+            case "attack_start": HandleAttackStart(json);  break;
             default:
                 // неизвестные типы просто игнорируем
                 break;
@@ -580,6 +581,38 @@ public static class NetworkMessageHandler
             return;
 
         NpcManager.Instance?.OnNpcAttack(msg);
+    }
+
+    private static void HandleAttackStart(string json)
+    {
+        NetMessageAttackStart msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageAttackStart>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить attack_start: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.attackId) || string.IsNullOrEmpty(msg.sourceId))
+            return;
+
+        AttackContextRegistry.SetAttack(msg.sourceId, msg.attackId);
+
+        if (msg.sourceId == PlayerController.LocalPlayerId)
+        {
+            var combat = Object.FindObjectOfType<CombatModeController>();
+            if (combat != null)
+            {
+                combat.StartAttackWindowFromServer(msg.attackId, new Vector2(msg.dirX, msg.dirY));
+            }
+        }
+        else if (!string.IsNullOrEmpty(msg.targetId) && msg.targetId == PlayerController.LocalPlayerId)
+        {
+            NpcManager.Instance?.OnAttackStart(msg);
+        }
     }
 
     // ================== DISCONNECT ==================

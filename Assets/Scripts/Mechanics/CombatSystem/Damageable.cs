@@ -17,6 +17,7 @@ public class BodyZoneCollider
 
 public struct AttackData
 {
+    public string attackId;
     public float baseDamage;
     public Vector2 direction;
     public Transform attacker;
@@ -127,26 +128,42 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
         $"isNetworkEntity={isNetworkEntity}, id='{networkId}', " +
         $"healthNull={healthIsNull}, energyNull={energyIsNull}");
 
-    if (data.attackerDamageable != null)
+    var zone = FindZone(hitCollider);
+    string zoneName = zone != null ? zone.zone.ToString() : "";
+
+    if (isNetworkEntity && !string.IsNullOrEmpty(networkId))
     {
-        var remoteNpc = data.attackerDamageable.GetComponent<RemoteNpcController>();
-        if (remoteNpc != null && isNetworkEntity && !string.IsNullOrEmpty(networkId))
+        var ws = WebSocketClient.Instance;
+        if (ws != null)
         {
-            var ws = WebSocketClient.Instance;
-            if (ws != null && !string.IsNullOrEmpty(data.attackerDamageable.networkId))
+            string sourceId = null;
+            if (data.attackerDamageable != null &&
+                data.attackerDamageable.isNetworkEntity &&
+                !string.IsNullOrEmpty(data.attackerDamageable.networkId))
             {
-                var req = new NetMessageNpcAttackRequest
+                sourceId = data.attackerDamageable.networkId;
+            }
+
+            if (!string.IsNullOrEmpty(data.attackId) && !string.IsNullOrEmpty(sourceId))
+            {
+                var report = new NetMessageAttackHitReport
                 {
-                    npcId = data.attackerDamageable.networkId,
+                    attackId = data.attackId,
+                    sourceId = sourceId,
                     targetId = networkId,
+                    hitPart = zoneName,
                     x = transform.position.x,
                     y = transform.position.y,
                     z = transform.position.z
                 };
-                string json = JsonUtility.ToJson(req);
-                Debug.Log($"[DMG-NET] SEND npc_attack_request: {json}");
+                string json = JsonUtility.ToJson(report);
+                Debug.Log($"[DMG-NET] SEND attack_hit_report: {json}");
                 ws.Send(json);
+                return;
             }
+
+            Debug.LogWarning(
+                $"[DMG-NET] Missing attackId/sourceId for network hit on {name}, ignored");
             return;
         }
     }
@@ -161,7 +178,6 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
 
     // ---------- 1. Базовый урон + зона ----------
     float dmg = data.baseDamage;
-    var zone = FindZone(hitCollider);
     if (zone != null)
     {
         dmg *= zone.damageMultiplier;
@@ -226,14 +242,13 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
     if (remaining <= 0f && !isNetworkEntity)
         return;
 
-    // ---------- 4. СЕТЕВАЯ ВЕТКА (игроки / сетевые сущности) ----------
+    // ---------- 4. СЕТЕВАЯ ВЕТКА (fallback без сервера) ----------
     if (isNetworkEntity && !string.IsNullOrEmpty(networkId))
     {
-        var ws = WebSocketClient.Instance;
-        if (ws == null)
+        if (WebSocketClient.Instance == null)
         {
             Debug.LogWarning(
-                $"[NET] damage_request SKIPPED ({name}): " +
+                $"[NET] attack_hit_report SKIPPED ({name}): " +
                 $"WebSocketClient.Instance is null, applying local damage remaining={remaining}");
 
             if (!healthIsNull && remaining > 0f)
@@ -242,57 +257,15 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
             return;
         }
 
-        // 4.1. Сначала отправляем, сколько энергии потратили
-        if (!energyIsNull && energySpent > 0f)
-        {
-            var eReq = new NetMessageEnergyRequest
-            {
-                type     = "energy_request",
-                targetId = networkId,
-                amount   = energySpent
-            };
-
-            string eJson = JsonUtility.ToJson(eReq);
-            Debug.Log($"[DMG-NET] SEND energy_request: {eJson}");
-            ws.Send(eJson);
-        }
-
-        // 4.2. Потом — урон по HP (ТОЛЬКО если что-то осталось)
-        if (remaining > 0f)
-        {
-            string sourceId = null;
-            if (data.attackerDamageable != null &&
-                data.attackerDamageable.isNetworkEntity &&
-                !string.IsNullOrEmpty(data.attackerDamageable.networkId))
-            {
-                sourceId = data.attackerDamageable.networkId;
-            }
-
-            var req = new NetMessageDamageRequest
-            {
-                type     = "damage_request",
-                sourceId = sourceId,
-                targetId = networkId,
-                amount   = remaining,
-                zone     = zone != null ? zone.zone.ToString() : "",
-                x        = transform.position.x,
-                y        = transform.position.y,
-                z        = transform.position.z
-            };
-
-            string json = JsonUtility.ToJson(req);
-            Debug.Log($"[DMG-NET] SEND damage_request: {json}");
-            ws.Send(json);
-        }
-
-        // ЛОКАЛЬНО HP/энергию не меняем — ждём damage/energy_update от сервера.
         return;
     }
 
     // ---------- 5. Оффлайн / несетевые цели ----------
     if (!healthIsNull && remaining > 0f)
+    {
         health.TakeDamage(remaining);
         DamagePopupManager.Instance?.ShowDamage(Mathf.RoundToInt(remaining), transform.position);
+    }
 
 }
 
