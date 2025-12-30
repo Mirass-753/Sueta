@@ -554,6 +554,9 @@ function decideAttackStep({
 }) {
   if (!player) return null;
 
+  const attackRangeStart = getAttackRangeStart(config);
+  const attackStopRange = getAttackStopRange(config);
+  const distanceToPlayer = distanceBetween(npc.x, npc.y, player.x, player.y);
   const playerCell = worldToCell(player.x, player.y, config);
   const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
