@@ -267,11 +267,11 @@ function selectTarget({ players, stats, config, meta, npcId, npcX, npcY }) {
 function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now, config }) {
   const hasPlayer = !!player;
   const patrolCells = Array.isArray(npc.patrolCells) ? npc.patrolCells : [];
-  const attackRangeStart = getAttackRangeStart(config);
-  const attackStopRange = getAttackStopRange(config);
+  const npcCell = worldToCell(npc.x, npc.y, config);
+  const playerCell = hasPlayer ? worldToCell(player.x, player.y, config) : null;
+  const adjacent = playerCell ? areCellsAdjacent(npcCell, playerCell) : false;
   const facingDir = player ? getSnappedFacingDirection(npc, player) : { x: 0, y: 0 };
-  const hasAttackRange = player ? distanceToPlayer <= attackRangeStart : false;
-  const hasStopRange = player ? distanceToPlayer <= attackStopRange : false;
+  const hasStopRange = adjacent;
   const hasValidDirection = player
     ? isAttackDirectionValid({ npc, player, dirX: facingDir.x, dirY: facingDir.y, config })
     : false;
@@ -303,7 +303,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
         } else {
           changeState(meta, patrolCells.length > 0 ? 'Patrol' : 'Idle', now);
         }
-      } else if (hasAttackRange && hasValidDirection) {
+      } else if (adjacent && hasValidDirection) {
         changeState(meta, 'Attack', now);
       } else if (healthPercent < config.NPC_RETREAT_HEALTH_THRESHOLD && Math.random() < config.NPC_RETREAT_CHANCE) {
         changeState(meta, 'Retreat', now);
@@ -483,8 +483,9 @@ function decideChaseStep({
 }) {
   if (!player) return null;
 
-  const attackStopRange = getAttackStopRange(config);
-  if (distanceToPlayer <= attackStopRange) {
+  const playerCell = worldToCell(player.x, player.y, config);
+  const adjacent = areCellsAdjacent(currentCell, playerCell);
+  if (adjacent) {
     updateFacingTowardsTarget(meta, npc, player);
     return null;
   }
@@ -557,11 +558,12 @@ function decideAttackStep({
   const attackStopRange = getAttackStopRange(config);
   const distanceToPlayer = distanceBetween(npc.x, npc.y, player.x, player.y);
   const playerCell = worldToCell(player.x, player.y, config);
+  const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const dir = updateFacingTowardsTarget(meta, npc, player);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
-  if (distanceToPlayer <= attackRangeStart && canAttack && hasValidDirection) {
+  if (adjacent && canAttack && hasValidDirection) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
@@ -596,7 +598,7 @@ function decideAttackStep({
     return null;
   }
 
-  if (distanceToPlayer <= attackStopRange) {
+  if (adjacent) {
     return null;
   }
 
