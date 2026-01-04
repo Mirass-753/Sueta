@@ -558,12 +558,11 @@ function decideAttackStep({
   const attackStopRange = getAttackStopRange(config);
   const distanceToPlayer = distanceBetween(npc.x, npc.y, player.x, player.y);
   const playerCell = worldToCell(player.x, player.y, config);
-  const adjacent = areCellsAdjacent(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const dir = updateFacingTowardsTarget(meta, npc, player);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
-  if (adjacent && canAttack && hasValidDirection) {
+  if (distanceToPlayer <= attackRangeStart && canAttack && hasValidDirection) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
@@ -572,19 +571,26 @@ function decideAttackStep({
         hasValidDirection,
       });
     }
+
     const attackId = attacks.createAttack({
       sourceId: npcId,
       targetId: player.id,
       dirX: dir.x,
       dirY: dir.y,
-      weapon: 'claws',
-      windowSeconds: config.NPC_ATTACK_WINDOW_SECONDS,
+      startTime: now,
+      windowSeconds:
+        typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+          ? config.NPC_ATTACK_WINDOW_SECONDS
+          : 0.2,
+      kind: 'npc_melee',
     });
-    meta.dirX = dir.x;
-    meta.dirY = dir.y;
-    meta.attackWindowUntil = now + (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
-      ? config.NPC_ATTACK_WINDOW_SECONDS
-      : 0.2);
+
+    meta.attackWindowUntil =
+      now +
+      (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
+        ? config.NPC_ATTACK_WINDOW_SECONDS
+        : 0.2);
+
     broadcast({
       type: 'attack_start',
       attackId,
@@ -594,11 +600,13 @@ function decideAttackStep({
       dirY: dir.y,
       weapon: 'claws',
     });
+
     meta.lastAttackTime = now;
     return null;
   }
 
-  if (adjacent) {
+  if (distanceToPlayer <= attackStopRange) {
+    // ??? ?????????? ?????? — ?? ?????????, ???? ?????????? ???? ?????
     return null;
   }
 
