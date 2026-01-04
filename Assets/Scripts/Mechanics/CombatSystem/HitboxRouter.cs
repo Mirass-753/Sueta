@@ -63,7 +63,8 @@ public class HitboxRouter : MonoBehaviour
         if (string.IsNullOrEmpty(attackId))
         {
             Debug.LogWarning(
-                $"[HITBOX] No active attack for attacker id='{_attackerDamageable.networkId}', hit ignored");
+                $"[HITBOX] No active attack for attacker id='{_attackerDamageable.networkId}', " +
+                $"target='{targetDamageable.networkId}', hit ignored");
             return;
         }
     }
