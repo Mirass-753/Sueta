@@ -1,6 +1,8 @@
 function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
   const debugAi = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
     || process.env.DEBUG_AI === '1';
+  const debugCombat = String(process.env.DEBUG_COMBAT || '').toLowerCase() === 'true'
+    || process.env.DEBUG_COMBAT === '1';
   const lastMoveLogAt = new Map();
 
   function worldToCell(x, y) {
@@ -206,15 +208,42 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     const targetId = typeof msg.targetId === 'string' ? msg.targetId : null;
     const hitPart = typeof msg.hitPart === 'string' ? msg.hitPart : '';
 
-    if (!attackId || !sourceId || !targetId) return;
+    if (!attackId || !sourceId || !targetId) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: missing ids', { attackId, sourceId, targetId });
+      }
+      return;
+    }
 
     const attack = attacks.getAttack(attackId);
-    if (!attack || attack.sourceId !== sourceId) return;
-    if (attack.targetId && attack.targetId !== targetId) return;
+    if (!attack || attack.sourceId !== sourceId) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: attack missing or source mismatch', {
+          attackId,
+          sourceId,
+          attackSourceId: attack?.sourceId,
+        });
+      }
+      return;
+    }
+    if (attack.targetId && attack.targetId !== targetId) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: target mismatch', {
+          attackId,
+          sourceId,
+          targetId,
+          attackTargetId: attack.targetId,
+        });
+      }
+      return;
+    }
 
     const now = Date.now() / 1000;
     if (!attacks.isAttackActive(attack, now)) {
       attacks.removeAttack(attackId);
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: attack window expired', { attackId, sourceId, targetId });
+      }
       return;
     }
 
@@ -226,24 +255,64 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     const source = sourceNpc || sourcePlayer;
     const target = targetNpc || targetPlayer;
 
-    if (!source || !target) return;
+    if (!source || !target) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: source/target missing', {
+          attackId,
+          sourceId,
+          targetId,
+          hasSource: !!source,
+          hasTarget: !!target,
+        });
+      }
+      return;
+    }
 
     const dx = target.x - source.x;
     const dy = target.y - source.y;
     const distance = Math.hypot(dx, dy);
 
     const range = sourceNpc ? config.NPC_ATTACK_RANGE : config.PLAYER_ATTACK_RANGE;
-    if (distance > range) return;
+    if (distance > range) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: out of range', {
+          attackId,
+          sourceId,
+          targetId,
+          distance,
+          range,
+          source: { x: source.x, y: source.y },
+          target: { x: target.x, y: target.y },
+        });
+      }
+      return;
+    }
 
     const dirX = typeof attack.dirX === 'number' ? attack.dirX : 0;
     const dirY = typeof attack.dirY === 'number' ? attack.dirY : 0;
     const dirLen = Math.hypot(dirX, dirY);
-    if (dirLen === 0) return;
+    if (dirLen === 0) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: zero direction', { attackId, sourceId, targetId });
+      }
+      return;
+    }
 
     const toTarget = normalizeVector(dx, dy);
     const facingDot = sourceNpc ? config.NPC_ATTACK_FACING_DOT : config.PLAYER_ATTACK_FACING_DOT;
     const dot = (dirX * toTarget.x + dirY * toTarget.y) / dirLen;
-    if (dot < facingDot) return;
+    if (dot < facingDot) {
+      if (debugCombat) {
+        console.log('[WS][HIT] drop: facing dot', {
+          attackId,
+          sourceId,
+          targetId,
+          dot,
+          facingDot,
+        });
+      }
+      return;
+    }
 
     const baseDamage = sourceNpc ? config.NPC_ATTACK_DAMAGE : config.PLAYER_ATTACK_DAMAGE;
     const partMultiplier = config.HIT_PART_MULTIPLIERS[hitPart] || 1;

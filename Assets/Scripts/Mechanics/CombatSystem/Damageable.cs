@@ -163,7 +163,9 @@ public void ApplyHit(AttackData data, Collider2D hitCollider)
             }
 
             Debug.LogWarning(
-                $"[DMG-NET] Missing attackId/sourceId for network hit on {name}, ignored");
+                $"[DMG-NET] Missing attackId/sourceId for network hit on {name}, " +
+                $"attackId='{data.attackId}', sourceId='{sourceId}', " +
+                $"attacker='{data.attackerDamageable?.name}', targetId='{networkId}', ignored");
             return;
         }
     }
