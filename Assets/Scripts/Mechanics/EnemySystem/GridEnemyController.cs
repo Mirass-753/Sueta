@@ -380,10 +380,35 @@ public class GridEnemyController : MonoBehaviour
             return null;
 
         bool hasAttackContact = HasAttackContact();
+        Vector2Int playerCell = sense.PlayerCell(gridSize, cellCenterOffset);
+        int playerManhattanDistance = ManhattanDistance(_currentCell, playerCell);
+
+        if (playerManhattanDistance <= 1)
+        {
+            if (playerManhattanDistance == 0)
+            {
+                Vector2Int? adjacentCell = GetAdjacentCellToTarget(playerCell);
+                if (adjacentCell.HasValue)
+                {
+                    return FindPathTo(adjacentCell.Value);
+                }
+            }
+
+            return null;
+        }
 
         // Предсказываем позицию игрока
         Vector2 predictedPos = PredictPlayerPosition();
         Vector2Int targetCell = WorldToCell(predictedPos);
+
+        if (targetCell == playerCell)
+        {
+            Vector2Int? adjacentCell = GetAdjacentCellToTarget(playerCell);
+            if (adjacentCell.HasValue)
+            {
+                targetCell = adjacentCell.Value;
+            }
+        }
 
         // Если уже рядом - не двигаемся, атакуем
         int dx = targetCell.x - _currentCell.x;
@@ -424,6 +449,12 @@ public class GridEnemyController : MonoBehaviour
         }
 
         // Подходим ближе для атаки
+        Vector2Int? adjacentCell = GetAdjacentCellToTarget(playerCell);
+        if (adjacentCell.HasValue)
+        {
+            return FindPathTo(adjacentCell.Value);
+        }
+
         return FindPathTo(playerCell);
     }
 
@@ -591,6 +622,37 @@ public class GridEnemyController : MonoBehaviour
         int sx = moveOnX ? (dx > 0 ? 1 : -1) : 0;
         int sy = moveOnX ? 0 : (dy > 0 ? 1 : -1);
         return new Vector2Int(_currentCell.x + sx, _currentCell.y + sy);
+    }
+
+    private Vector2Int? GetAdjacentCellToTarget(Vector2Int targetCell)
+    {
+        Vector2Int? bestCell = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (var dir in _directions)
+        {
+            Vector2Int candidate = targetCell + dir;
+            if (!IsCellWalkable(candidate))
+            {
+                continue;
+            }
+
+            float distance = (candidate - _currentCell).sqrMagnitude;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestCell = candidate;
+            }
+        }
+
+        return bestCell;
+    }
+
+    private static int ManhattanDistance(Vector2Int a, Vector2Int b)
+    {
+        int dx = Mathf.Abs(a.x - b.x);
+        int dy = Mathf.Abs(a.y - b.y);
+        return dx + dy;
     }
 
     IEnumerator MoveToCell(Vector2Int cell)
