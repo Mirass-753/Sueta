@@ -19,6 +19,65 @@ const ORTHO_COST = 1;
 const DIAGONAL_COST = Math.SQRT2;
 const DEBUG_AI = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
   || process.env.DEBUG_AI === '1';
+const DEBUG_NPC_ATTACK = String(process.env.DEBUG_NPC_ATTACK || process.env.DEBUG_COMBAT || '').toLowerCase() === 'true'
+  || process.env.DEBUG_NPC_ATTACK === '1'
+  || process.env.DEBUG_COMBAT === '1';
+const ATTACK_LOG_RATE_LIMIT_SEC = 0.75;
+const attackLogLastAt = new Map();
+
+function shouldLogAttack(npcId, now) {
+  if (!npcId) return false;
+  const last = attackLogLastAt.get(npcId) || -Infinity;
+  if (now - last < ATTACK_LOG_RATE_LIMIT_SEC) return false;
+  attackLogLastAt.set(npcId, now);
+  return true;
+}
+
+function formatNumber(value) {
+  return Number.isFinite(value) ? value.toFixed(2) : String(value);
+}
+
+function logAttackBlocked({ npcId, reason, now, meta, npc, player, distanceToPlayer, range, cooldownLeft }) {
+  if (!DEBUG_NPC_ATTACK || !shouldLogAttack(npcId, now)) return;
+  const npcX = npc?.x;
+  const npcY = npc?.y;
+  const targetX = player?.x;
+  const targetY = player?.y;
+  const state = meta?.state;
+  const parts = [
+    `[ATTACK_BLOCKED] npcId=${npcId}`,
+    `reason=${reason}`,
+  ];
+  if (typeof cooldownLeft === 'number') parts.push(`cooldownLeft=${formatNumber(Math.max(0, cooldownLeft))}`);
+  if (typeof distanceToPlayer === 'number') parts.push(`dist=${formatNumber(distanceToPlayer)}`);
+  if (typeof range === 'number') parts.push(`range=${formatNumber(range)}`);
+  if (state) parts.push(`state=${state}`);
+  if (npcX !== undefined && npcY !== undefined) parts.push(`npc=(${formatNumber(npcX)},${formatNumber(npcY)})`);
+  if (targetX !== undefined && targetY !== undefined) parts.push(`target=(${formatNumber(targetX)},${formatNumber(targetY)})`);
+  console.log(parts.join(' '));
+}
+
+function logAttackStart({ npcId, targetId, attackId, now, meta, npc, player, distanceToPlayer, range, cooldownLeft, dir }) {
+  if (!DEBUG_NPC_ATTACK || !shouldLogAttack(npcId, now)) return;
+  const npcX = npc?.x;
+  const npcY = npc?.y;
+  const targetX = player?.x;
+  const targetY = player?.y;
+  const state = meta?.state;
+  const parts = [
+    `[ATTACK_START] npcId=${npcId}`,
+    `targetId=${targetId}`,
+    `attackId=${attackId}`,
+    `dist=${formatNumber(distanceToPlayer)}`,
+    `range=${formatNumber(range)}`,
+    `cooldownLeft=${formatNumber(Math.max(0, cooldownLeft))}`,
+    `dir=(${formatNumber(dir?.x)},${formatNumber(dir?.y)})`,
+    `npcPos=(${formatNumber(npcX)},${formatNumber(npcY)})`,
+    `targetPos=(${formatNumber(targetX)},${formatNumber(targetY)})`,
+  ];
+  if (state) parts.push(`state=${state}`);
+  console.log(parts.join(' '));
+}
 
 function startNpcAiLoop({ npcs, players, stats, config, attacks, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
@@ -283,7 +342,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
 
   switch (meta.state) {
     case 'Idle':
-  // если игрок рядом — начинаем преследование даже без patrolCells
+  // ÐµÑÐ»Ð¸ Ð¸Ð³Ñ€Ð¾Ðº Ñ€ÑÐ´Ð¾Ð¼ â€” Ð½Ð°Ñ‡Ð¸Ð½Ð°ÐµÐ¼ Ð¿Ñ€ÐµÑÐ»ÐµÐ´Ð¾Ð²Ð°Ð½Ð¸Ðµ Ð´Ð°Ð¶Ðµ Ð±ÐµÐ· patrolCells
   if (hasPlayer && distanceToPlayer <= config.NPC_AGGRO_RANGE) {
     changeState(meta, 'Chase', now);
   } else if (patrolCells.length > 0) {
@@ -552,16 +611,125 @@ function decideAttackStep({
   attacks,
   broadcast,
 }) {
-  if (!player) return null;
+  // 1) нет цели
+  if (!player) {
+    logAttackBlocked({ npcId, reason: 'NO_TARGET', now, meta, npc, player: null });
+    return null;
+  }
 
   const attackRangeStart = getAttackRangeStart(config);
   const attackStopRange = getAttackStopRange(config);
+
+  // 2) координаты валидны
+  if (!Number.isFinite(npc.x) || !Number.isFinite(npc.y)) {
+    logAttackBlocked({
+      npcId,
+      reason: 'INVALID_POS',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer: NaN,
+      range: attackRangeStart,
+    });
+    return null;
+  }
+  if (!Number.isFinite(player.x) || !Number.isFinite(player.y)) {
+    logAttackBlocked({
+      npcId,
+      reason: 'INVALID_TARGET_POS',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer: NaN,
+      range: attackRangeStart,
+    });
+    return null;
+  }
+
   const distanceToPlayer = distanceBetween(npc.x, npc.y, player.x, player.y);
-  const playerCell = worldToCell(player.x, player.y, config);
-  const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
+  if (!Number.isFinite(distanceToPlayer)) {
+    logAttackBlocked({
+      npcId,
+      reason: 'INVALID_DISTANCE',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+    });
+    return null;
+  }
+
+  const cooldownLeft = meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN - now;
+  const canAttack = cooldownLeft <= 0;
+
   const dir = updateFacingTowardsTarget(meta, npc, player);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
 
+  // ---- выбираем 1 причину и выходим ----
+  if (meta.state !== 'Attack') {
+    logAttackBlocked({
+      npcId,
+      reason: 'NOT_READY_STATE',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+    });
+    return null;
+  }
+
+  if (!canAttack) {
+    logAttackBlocked({
+      npcId,
+      reason: 'COOLDOWN',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+    });
+    return null;
+  }
+
+  if (distanceToPlayer > attackRangeStart) {
+    logAttackBlocked({
+      npcId,
+      reason: 'OUT_OF_RANGE',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+    });
+    return null;
+  }
+
+  if (!hasValidDirection) {
+    const dirLen = Math.hypot(dir.x, dir.y);
+    logAttackBlocked({
+      npcId,
+      reason: dirLen === 0 ? 'ZERO_DIR' : 'INVALID_DIR',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+    });
+    return null;
+  }
   if (distanceToPlayer <= attackRangeStart && canAttack && hasValidDirection) {
     if (DEBUG_AI) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
@@ -585,6 +753,20 @@ function decideAttackStep({
       kind: 'npc_melee',
     });
 
+    logAttackStart({
+      npcId,
+      targetId: player.id,
+      attackId,
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+      dir,
+    });
+
     meta.attackWindowUntil =
       now +
       (typeof config.NPC_ATTACK_WINDOW_SECONDS === 'number'
@@ -606,7 +788,7 @@ function decideAttackStep({
   }
 
   if (distanceToPlayer <= attackStopRange) {
-    // ??? ?????????? ?????? � ?? ?????????, ???? ?????????? ???? ?????
+    // ??? ?????????? ?????? — ?? ?????????, ???? ?????????? ???? ?????
     return null;
   }
 
