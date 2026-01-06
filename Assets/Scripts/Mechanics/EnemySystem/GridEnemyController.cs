@@ -593,6 +593,7 @@ public class GridEnemyController : MonoBehaviour
         return new Vector2Int(_currentCell.x + sx, _currentCell.y + sy);
     }
 
+
     IEnumerator MoveToCell(Vector2Int cell)
     {
         _isMoving = true;
