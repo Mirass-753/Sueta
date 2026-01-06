@@ -371,6 +371,36 @@ function areCellsAdjacent(a, b) {
   return Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0);
 }
 
+function manhattanDistance(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function facePlayer(meta, npc, player) {
+  const dir = normalizeVector(player.x - npc.x, player.y - npc.y);
+  meta.dirX = dir.x;
+  meta.dirY = dir.y;
+}
+
+function getAdjacentCellToTarget(targetCell, currentCell, occupancy, blockedCells) {
+  let bestCell = null;
+  let bestDistance = Infinity;
+
+  for (const dir of ORTHO_DIRECTIONS) {
+    const candidate = { x: targetCell.x + dir.x, y: targetCell.y + dir.y };
+    if (!isCellWalkable(candidate, currentCell, occupancy, blockedCells)) {
+      continue;
+    }
+
+    const distance = manhattanDistance(candidate, currentCell);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestCell = candidate;
+    }
+  }
+
+  return bestCell;
+}
+
 function decideAction({
   meta,
   npcId,
@@ -500,6 +530,19 @@ function decideChaseStep({
 
   const attackDir = getAttackDirection(meta, npc, player, config);
   const hasAttackContact = isAttackHit({ npc, player, dirX: attackDir.x, dirY: attackDir.y, config });
+  const playerCell = worldToCell(player.x, player.y, config);
+  const playerDistance = manhattanDistance(currentCell, playerCell);
+  if (playerDistance === 1) {
+    facePlayer(meta, npc, player);
+    return null;
+  }
+  if (playerDistance === 0) {
+    const adjacentCell = getAdjacentCellToTarget(playerCell, currentCell, occupancy, blockedCells);
+    if (adjacentCell) {
+      return findPathTo(currentCell, adjacentCell, occupancy, blockedCells, { forceOrtho: true });
+    }
+  }
+
   const npcWorld = cellToWorld(currentCell, config);
   const snapFactor = typeof config.NPC_ALIGN_SNAP_FACTOR === 'number'
     ? config.NPC_ALIGN_SNAP_FACTOR
@@ -551,7 +594,15 @@ function decideChaseStep({
           attackRange: config.NPC_ATTACK_RANGE,
         });
       }
+      facePlayer(meta, npc, player);
       return null;
+    }
+  }
+
+  if (targetCell.x === playerCell.x && targetCell.y === playerCell.y) {
+    const adjacentCell = getAdjacentCellToTarget(playerCell, currentCell, occupancy, blockedCells);
+    if (adjacentCell) {
+      targetCell = adjacentCell;
     }
   }
 
@@ -578,11 +629,19 @@ function decideAttackStep({
   if (!player) return null;
 
   const playerCell = worldToCell(player.x, player.y, config);
+  const playerDistance = manhattanDistance(currentCell, playerCell);
   const canAttack = now >= meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN;
   const canAttackAfterMove = now >= meta.lastMoveTime + config.NPC_ATTACK_COOLDOWN_AFTER_MOVE;
   const dir = getAttackDirection(meta, npc, player, config);
   const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
   const hasValidHit = isAttackHit({ npc, player, dirX: dir.x, dirY: dir.y, config });
+
+  if (playerDistance === 0) {
+    const adjacentCell = getAdjacentCellToTarget(playerCell, currentCell, occupancy, blockedCells);
+    if (adjacentCell) {
+      return findPathTo(currentCell, adjacentCell, occupancy, blockedCells, { forceOrtho: true });
+    }
+  }
 
   if (hasValidHit && canAttack && canAttackAfterMove) {
     if (DEBUG_AI_VERBOSE) {
@@ -622,10 +681,21 @@ function decideAttackStep({
     }
   }
 
-  if (DEBUG_AI_VERBOSE) {
-    console.log('[NPC AI] attack move', meta.npcId || '?', { playerCell });
+  if (playerDistance === 1) {
+    facePlayer(meta, npc, player);
+    return null;
   }
-  return findPathTo(currentCell, playerCell, occupancy, blockedCells);
+
+  const adjacentCell = getAdjacentCellToTarget(playerCell, currentCell, occupancy, blockedCells);
+  if (DEBUG_AI_VERBOSE) {
+    console.log('[NPC AI] attack move', meta.npcId || '?', {
+      playerCell,
+      targetCell: adjacentCell || playerCell,
+    });
+  }
+  return findPathTo(currentCell, adjacentCell || playerCell, occupancy, blockedCells, {
+    forceOrtho: !!adjacentCell,
+  });
 }
 
 function getAttackDirection(meta, npc, player, config) {
