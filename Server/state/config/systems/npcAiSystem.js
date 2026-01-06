@@ -210,6 +210,9 @@ function ensureMetaDefaults(meta, now) {
   if (typeof meta.lastSentMoving !== 'boolean') {
     meta.lastSentMoving = null;
   }
+  if (typeof meta.lastDecisionSnapshot !== 'string') {
+    meta.lastDecisionSnapshot = '';
+  }
 }
 
 function buildOccupancy(players, npcs, config) {
@@ -283,7 +286,7 @@ function updateAiState({ meta, npc, player, distanceToPlayer, healthPercent, now
 
   switch (meta.state) {
     case 'Idle':
-  // если игрок рядом — начинаем преследование даже без patrolCells
+  // ÐµÑÐ»Ð¸ Ð¸Ð³Ñ€Ð¾Ðº Ñ€ÑÐ´Ð¾Ð¼ â€” Ð½Ð°Ñ‡Ð¸Ð½Ð°ÐµÐ¼ Ð¿Ñ€ÐµÑÐ»ÐµÐ´Ð¾Ð²Ð°Ð½Ð¸Ðµ Ð´Ð°Ð¶Ðµ Ð±ÐµÐ· patrolCells
   if (hasPlayer && distanceToPlayer <= config.NPC_AGGRO_RANGE) {
     changeState(meta, 'Chase', now);
   } else if (patrolCells.length > 0) {
@@ -382,12 +385,21 @@ function decideAction({
   broadcast,
 }) {
   if (DEBUG_AI) {
-    console.log('[NPC AI] decide', meta.npcId || '?', {
+    const decisionSnapshot = JSON.stringify({
       state: meta.state,
       currentCell,
       distanceToPlayer,
       healthPercent,
     });
+    if (decisionSnapshot !== meta.lastDecisionSnapshot) {
+      console.log('[NPC AI] decide', meta.npcId || '?', {
+        state: meta.state,
+        currentCell,
+        distanceToPlayer,
+        healthPercent,
+      });
+      meta.lastDecisionSnapshot = decisionSnapshot;
+    }
   }
   switch (meta.state) {
     case 'Patrol':
@@ -606,7 +618,7 @@ function decideAttackStep({
   }
 
   if (distanceToPlayer <= attackStopRange) {
-    // ??? ?????????? ?????? � ?? ?????????, ???? ?????????? ???? ?????
+    // ??? ?????????? ?????? — ?? ?????????, ???? ?????????? ???? ?????
     return null;
   }
 

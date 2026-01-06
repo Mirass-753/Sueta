@@ -214,6 +214,9 @@ function ensureMetaDefaults(meta, now) {
   if (typeof meta.lastSentMoving !== 'boolean') {
     meta.lastSentMoving = null;
   }
+  if (typeof meta.lastDecisionSnapshot !== 'string') {
+    meta.lastDecisionSnapshot = '';
+  }
 }
 
 function buildOccupancy(players, npcs, config) {
@@ -385,12 +388,21 @@ function decideAction({
   broadcast,
 }) {
   if (DEBUG_AI_VERBOSE) {
-    console.log('[NPC AI] decide', meta.npcId || '?', {
+    const decisionSnapshot = JSON.stringify({
       state: meta.state,
       currentCell,
       distanceToPlayer,
       healthPercent,
     });
+    if (decisionSnapshot !== meta.lastDecisionSnapshot) {
+      console.log('[NPC AI] decide', meta.npcId || '?', {
+        state: meta.state,
+        currentCell,
+        distanceToPlayer,
+        healthPercent,
+      });
+      meta.lastDecisionSnapshot = decisionSnapshot;
+    }
   }
   switch (meta.state) {
     case 'Patrol':
