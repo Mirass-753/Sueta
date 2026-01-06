@@ -1,0 +1,13 @@
+{
+  "name": "catlaw-ws-server",
+  "version": "1.0.0",
+  "description": "Minimal WebSocket relay for CatLaw movement and damage sync",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}
