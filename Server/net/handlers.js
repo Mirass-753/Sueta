@@ -332,6 +332,22 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     };
 
     console.log('[WS] attack damage', evt);
+    if (appliedDamage > 0 && sourceNpc
+      && (process.env.DEBUG_NPC_ATTACK_VERBOSE === '1'
+        || String(process.env.DEBUG_NPC_ATTACK_VERBOSE || '').toLowerCase() === 'true'
+        || process.env.DEBUG_NPC_ATTACK === '1'
+        || String(process.env.DEBUG_NPC_ATTACK || '').toLowerCase() === 'true'
+        || process.env.DEBUG_COMBAT === '1'
+        || String(process.env.DEBUG_COMBAT || '').toLowerCase() === 'true')) {
+      console.log('[DAMAGE_APPLIED]', {
+        attackId,
+        sourceId,
+        targetId,
+        amount: appliedDamage,
+        hp: newHp,
+        hitPart,
+      });
+    }
 
     if (appliedDamage > 0) {
       const popupX = typeof msg.x === 'number' ? msg.x : target.x;
