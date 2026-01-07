@@ -24,11 +24,14 @@ const DEBUG_AI_VERBOSE = String(process.env.DEBUG_AI_VERBOSE || '').toLowerCase(
 const DEBUG_NPC_ATTACK = String(process.env.DEBUG_NPC_ATTACK || process.env.DEBUG_COMBAT || '').toLowerCase() === 'true'
   || process.env.DEBUG_NPC_ATTACK === '1'
   || process.env.DEBUG_COMBAT === '1';
+const DEBUG_NPC_ATTACK_VERBOSE = String(process.env.DEBUG_NPC_ATTACK_VERBOSE || '').toLowerCase() === 'true'
+  || process.env.DEBUG_NPC_ATTACK_VERBOSE === '1';
 const ATTACK_LOG_RATE_LIMIT_SEC = 0.75;
 const attackLogLastAt = new Map();
 
 function shouldLogAttack(npcId, now) {
   if (!npcId) return false;
+  if (DEBUG_NPC_ATTACK_VERBOSE) return true;
   const last = attackLogLastAt.get(npcId) || -Infinity;
   if (now - last < ATTACK_LOG_RATE_LIMIT_SEC) return false;
   attackLogLastAt.set(npcId, now);
@@ -633,6 +636,10 @@ function decideAttackStep({
 
   const attackRangeStart = getAttackRangeStart(config);
   const attackStopRange = getAttackStopRange(config);
+  const attackRangeEpsilon = getAttackRangeEpsilon(config);
+  const attackFacingDot = getAttackFacingDot(config);
+  const attackFacingEpsilon = getAttackFacingEpsilon(config);
+  const minFacingDot = Math.max(0, attackFacingDot - attackFacingEpsilon);
 
   // 2) координаты валидны
   if (!Number.isFinite(npc.x) || !Number.isFinite(npc.y)) {
@@ -679,9 +686,23 @@ function decideAttackStep({
 
   const cooldownLeft = meta.lastAttackTime + config.NPC_ATTACK_COOLDOWN - now;
   const canAttack = cooldownLeft <= 0;
+  const moveCooldown = typeof config.NPC_ATTACK_COOLDOWN_AFTER_MOVE === 'number'
+    ? config.NPC_ATTACK_COOLDOWN_AFTER_MOVE
+    : 0;
+  const standStillSeconds = now - (meta.lastMoveTime || 0);
+  const softMoveGrace = getAttackAfterMoveGrace(config, moveCooldown);
+  const canAttackAfterMove = moveCooldown <= 0
+    || standStillSeconds >= moveCooldown
+    || (standStillSeconds >= softMoveGrace && distanceToPlayer <= attackRangeStart + attackRangeEpsilon);
 
   const dir = updateFacingTowardsTarget(meta, npc, player);
-  const hasValidDirection = isAttackDirectionValid({ npc, player, dirX: dir.x, dirY: dir.y, config });
+  const hasValidDirection = isAttackDirectionValidRelaxed({
+    npc,
+    player,
+    dirX: dir.x,
+    dirY: dir.y,
+    minDot: minFacingDot,
+  });
 
   // ---- выбираем 1 причину и выходим ----
   if (meta.state !== 'Attack') {
@@ -714,7 +735,22 @@ function decideAttackStep({
     return null;
   }
 
-  if (distanceToPlayer > attackRangeStart) {
+  if (!canAttackAfterMove) {
+    logAttackBlocked({
+      npcId,
+      reason: 'MOVE_COOLDOWN',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackRangeStart,
+      cooldownLeft,
+    });
+    return null;
+  }
+
+  if (distanceToPlayer > attackRangeStart + attackRangeEpsilon) {
     logAttackBlocked({
       npcId,
       reason: 'OUT_OF_RANGE',
@@ -744,7 +780,7 @@ function decideAttackStep({
     });
     return null;
   }
-  if (distanceToPlayer <= attackRangeStart && canAttack && hasValidDirection) {
+  if (distanceToPlayer <= attackRangeStart + attackRangeEpsilon && canAttack && hasValidDirection) {
     if (DEBUG_AI_VERBOSE) {
       console.log('[NPC AI] attack', meta.npcId || '?', {
         targetId: player.id,
@@ -801,8 +837,18 @@ function decideAttackStep({
     return null;
   }
 
-  if (distanceToPlayer <= attackStopRange) {
-    // ??? ?????????? ?????? — ?? ?????????, ???? ?????????? ???? ?????
+  if (distanceToPlayer <= attackStopRange + attackRangeEpsilon) {
+    logAttackBlocked({
+      npcId,
+      reason: 'IN_RANGE_HOLD',
+      now,
+      meta,
+      npc,
+      player,
+      distanceToPlayer,
+      range: attackStopRange,
+      cooldownLeft,
+    });
     return null;
   }
 
@@ -839,6 +885,14 @@ function isAttackDirectionValid({ npc, player, dirX, dirY, config }) {
   const toPlayer = normalizeVector(player.x - npc.x, player.y - npc.y);
   const dot = (dirX * toPlayer.x + dirY * toPlayer.y) / dirLen;
   return dot >= config.NPC_ATTACK_FACING_DOT;
+}
+
+function isAttackDirectionValidRelaxed({ npc, player, dirX, dirY, minDot }) {
+  const dirLen = Math.hypot(dirX, dirY);
+  if (!npc || !player || dirLen === 0) return false;
+  const toPlayer = normalizeVector(player.x - npc.x, player.y - npc.y);
+  const dot = (dirX * toPlayer.x + dirY * toPlayer.y) / dirLen;
+  return dot >= Math.max(0, minDot);
 }
 
 function isAttackHit({ npc, player, dirX, dirY, config }) {
@@ -1180,6 +1234,37 @@ function getAttackStopRange(config) {
     return config.NPC_ATTACK_STOP_RANGE;
   }
   return config.NPC_ATTACK_RANGE;
+}
+
+function getAttackRangeEpsilon(config) {
+  if (config && typeof config.NPC_ATTACK_RANGE_EPSILON === 'number') {
+    return config.NPC_ATTACK_RANGE_EPSILON;
+  }
+  return typeof config.GRID_SIZE === 'number' ? config.GRID_SIZE * 0.05 : 0.05;
+}
+
+function getAttackFacingDot(config) {
+  if (config && typeof config.NPC_ATTACK_FACING_DOT === 'number') {
+    return config.NPC_ATTACK_FACING_DOT;
+  }
+  return 0.5;
+}
+
+function getAttackFacingEpsilon(config) {
+  if (config && typeof config.NPC_ATTACK_FACING_DOT_EPSILON === 'number') {
+    return config.NPC_ATTACK_FACING_DOT_EPSILON;
+  }
+  return 0.1;
+}
+
+function getAttackAfterMoveGrace(config, moveCooldown) {
+  if (config && typeof config.NPC_ATTACK_AFTER_MOVE_GRACE === 'number') {
+    return config.NPC_ATTACK_AFTER_MOVE_GRACE;
+  }
+  if (typeof moveCooldown === 'number' && moveCooldown > 0) {
+    return Math.min(0.1, moveCooldown);
+  }
+  return 0;
 }
 
 function getSnappedFacingDirection(npc, player) {
