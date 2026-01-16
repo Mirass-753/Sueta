@@ -84,6 +84,83 @@ function logAttackStart({ npcId, targetId, attackId, now, meta, npc, player, dis
   console.log(parts.join(' '));
 }
 
+function applyNpcAttackDamage({
+  attackId,
+  npcId,
+  npc,
+  player,
+  stats,
+  config,
+  broadcast,
+  attacks,
+  dir,
+  attackRangeStart,
+  attackRangeEpsilon,
+}) {
+  if (!npc || !player) return;
+  const distanceToPlayer = Math.hypot(player.x - npc.x, player.y - npc.y);
+  if (typeof attackRangeStart === 'number') {
+    const epsilon = typeof attackRangeEpsilon === 'number' ? attackRangeEpsilon : 0;
+    if (distanceToPlayer > attackRangeStart + epsilon) {
+      if (attackId) {
+        attacks.removeAttack(attackId);
+      }
+      return;
+    }
+  }
+
+  if (!isAttackHit({ npc, player, dirX: dir?.x || 0, dirY: dir?.y || 0, config })) {
+    if (attackId) {
+      attacks.removeAttack(attackId);
+    }
+    return;
+  }
+
+  const oldHp = stats.getHp(player.id);
+  const newHp = stats.setHp(player.id, oldHp - config.NPC_ATTACK_DAMAGE);
+  const appliedDamage = Math.max(0, oldHp - newHp);
+  if (appliedDamage <= 0) {
+    if (attackId) {
+      attacks.removeAttack(attackId);
+    }
+    return;
+  }
+
+  const evt = {
+    type: 'damage',
+    sourceId: npcId,
+    targetId: player.id,
+    amount: appliedDamage,
+    hp: newHp,
+  };
+
+  console.log('[WS] npc damage', evt);
+
+  broadcast({
+    type: 'damage_popup',
+    amount: Math.round(appliedDamage),
+    x: player.x,
+    y: player.y,
+    z: 0,
+  });
+
+  broadcast({
+    type: 'hit_fx',
+    fx: 'claws',
+    targetId: player.id,
+    zone: '',
+    x: player.x,
+    y: player.y,
+    z: 0,
+  });
+
+  broadcast(evt);
+
+  if (attackId) {
+    attacks.removeAttack(attackId);
+  }
+}
+
 function startNpcAiLoop({ npcs, players, stats, config, attacks, broadcast }) {
   if (!npcs || !players || !stats || !config || !broadcast) {
     return;
@@ -831,6 +908,20 @@ function decideAttackStep({
       dirX: dir.x,
       dirY: dir.y,
       weapon: 'claws',
+    });
+
+    applyNpcAttackDamage({
+      attackId,
+      npcId,
+      npc,
+      player,
+      stats,
+      config,
+      broadcast,
+      attacks,
+      dir,
+      attackRangeStart,
+      attackRangeEpsilon,
     });
 
     meta.lastAttackTime = now;
