@@ -9,9 +9,27 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     return { x: Math.round(fx), y: Math.round(fy) };
   }
 
+  function isFiniteNumber(value) {
+    return Number.isFinite(value);
+  }
+
   function normalizeVector(x, y) {
     const len = Math.hypot(x, y) || 1;
     return { x: x / len, y: y / len };
+  }
+
+  function getNpcAttackRangeStart() {
+    if (typeof config.NPC_ATTACK_RANGE_START === 'number') {
+      return config.NPC_ATTACK_RANGE_START;
+    }
+    return config.NPC_ATTACK_RANGE;
+  }
+
+  function getNpcAttackRangeEpsilon() {
+    if (typeof config.NPC_ATTACK_RANGE_EPSILON === 'number') {
+      return config.NPC_ATTACK_RANGE_EPSILON;
+    }
+    return typeof config.GRID_SIZE === 'number' ? config.GRID_SIZE * 0.05 : 0.05;
   }
 
   function handleMove(ws, msg) {
@@ -319,7 +337,7 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     const target = players.getPlayer(targetId);
     const meta = npcs.getNpcMeta ? npcs.getNpcMeta(npcId) : null;
 
-    if (!npc || !target) return;
+    if (!npc || !target || !meta || meta.state !== 'Attack') return;
     if (meta && meta.targetPlayerId && meta.targetPlayerId !== targetId) return;
 
     const now = Date.now() / 1000;
@@ -328,11 +346,16 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
       : -Infinity;
     if (now > windowUntil) return;
 
+    if (![npc.x, npc.y, target.x, target.y].every(isFiniteNumber)) return;
+
     const dx = target.x - npc.x;
     const dy = target.y - npc.y;
     const distance = Math.hypot(dx, dy);
 
-    if (distance > config.NPC_ATTACK_RANGE) return;
+    if (!isFiniteNumber(distance)) return;
+    const attackRange = getNpcAttackRangeStart();
+    const attackRangeEpsilon = getNpcAttackRangeEpsilon();
+    if (distance > attackRange + attackRangeEpsilon) return;
 
     const npcCell = worldToCell(npc.x, npc.y);
     const targetCell = worldToCell(target.x, target.y);
