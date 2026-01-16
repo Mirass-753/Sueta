@@ -87,13 +87,35 @@ function logAttackStart({ npcId, targetId, attackId, now, meta, npc, player, dis
 function applyNpcAttackDamage({
   attackId,
   npcId,
+  npc,
   player,
   stats,
   config,
   broadcast,
   attacks,
+  dir,
+  attackRangeStart,
+  attackRangeEpsilon,
 }) {
-  if (!player) return;
+  if (!npc || !player) return;
+  const distanceToPlayer = Math.hypot(player.x - npc.x, player.y - npc.y);
+  if (typeof attackRangeStart === 'number') {
+    const epsilon = typeof attackRangeEpsilon === 'number' ? attackRangeEpsilon : 0;
+    if (distanceToPlayer > attackRangeStart + epsilon) {
+      if (attackId) {
+        attacks.removeAttack(attackId);
+      }
+      return;
+    }
+  }
+
+  if (!isAttackHit({ npc, player, dirX: dir?.x || 0, dirY: dir?.y || 0, config })) {
+    if (attackId) {
+      attacks.removeAttack(attackId);
+    }
+    return;
+  }
+
   const oldHp = stats.getHp(player.id);
   const newHp = stats.setHp(player.id, oldHp - config.NPC_ATTACK_DAMAGE);
   const appliedDamage = Math.max(0, oldHp - newHp);
@@ -891,11 +913,15 @@ function decideAttackStep({
     applyNpcAttackDamage({
       attackId,
       npcId,
+      npc,
       player,
       stats,
       config,
       broadcast,
       attacks,
+      dir,
+      attackRangeStart,
+      attackRangeEpsilon,
     });
 
     meta.lastAttackTime = now;
