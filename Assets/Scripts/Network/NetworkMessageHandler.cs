@@ -631,7 +631,7 @@ public static class NetworkMessageHandler
             return;
         }
 
-        if (msg == null || string.IsNullOrWhiteSpace(msg.text))
+        if (msg == null || IsNullOrWhiteSpace(msg.text))
             return;
 
         ChatMessageFeed.Instance?.AddMessage(msg.id, msg.text);
@@ -721,6 +721,11 @@ public static class NetworkMessageHandler
             dmg.energy.maxEnergy = entry.maxEnergy;
 
         dmg.energy.SetCurrentEnergyFromServer(entry.energy);
+    }
+
+    private static bool IsNullOrWhiteSpace(string value)
+    {
+        return string.IsNullOrEmpty(value) || value.Trim().Length == 0;
     }
 
     /// <summary>

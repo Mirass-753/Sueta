@@ -63,7 +63,7 @@ public class ChatMessageFeed : MonoBehaviour
 
     public void AddMessage(string senderId, string message)
     {
-        if (string.IsNullOrWhiteSpace(message) || messagesRoot == null)
+        if (IsNullOrWhiteSpace(message) || messagesRoot == null)
             return;
 
         string safeMessage = message.Trim();
@@ -186,6 +186,11 @@ public class ChatMessageFeed : MonoBehaviour
             return $"Игрок {senderId}";
 
         return $"Игрок {senderId.Substring(0, shortLength)}";
+    }
+
+    private bool IsNullOrWhiteSpace(string value)
+    {
+        return string.IsNullOrEmpty(value) || value.Trim().Length == 0;
     }
 
     private void EnsureChatUi()
