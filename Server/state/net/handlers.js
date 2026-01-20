@@ -464,6 +464,26 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     broadcast(evt, ws);
   }
 
+  function handleChat(ws, msg) {
+    const senderId = ws.playerId || (typeof msg.id === 'string' ? msg.id : null);
+    const rawText = typeof msg.text === 'string' ? msg.text : '';
+    const trimmed = rawText.trim();
+    if (!senderId || !trimmed) return;
+
+    if (!ws.playerId) ws.playerId = senderId;
+
+    const maxLength = typeof config.CHAT_MAX_LENGTH === 'number'
+      ? config.CHAT_MAX_LENGTH
+      : 160;
+    const text = trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+
+    broadcast({
+      type: 'chat',
+      id: senderId,
+      text,
+    });
+  }
+
   function handleDisconnect(ws) {
     const id = ws.playerId;
     if (!id) return;
@@ -515,6 +535,9 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
         break;
       case 'item_pickup':
         handleItemPickup(ws, msg);
+        break;
+      case 'chat':
+        handleChat(ws, msg);
         break;
       default:
         break;

@@ -6,6 +6,7 @@ const MAX_SPEED = 20;
 
 const DEFAULT_HP = 100;
 const DEFAULT_ENERGY = 100;
+const CHAT_MAX_LENGTH = 160;
 
 const NPC_SPAWN_POINTS = [
   { id: 'npc-1', x: -5, y: 0 },
@@ -75,6 +76,7 @@ module.exports = {
   MAX_SPEED,
   DEFAULT_HP,
   DEFAULT_ENERGY,
+  CHAT_MAX_LENGTH,
   NPC_SPAWN_POINTS,
   NPC_SPAWN_NEAR_PLAYER_RADIUS,
   NPC_STATE_BROADCAST_PERIOD_MS,
