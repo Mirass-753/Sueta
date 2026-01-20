@@ -69,6 +69,7 @@ public static class NetworkMessageHandler
             case "npc_attack":    HandleNpcAttack(json);    break;
             case "npc_despawn":   HandleNpcDespawn(json);   break;
             case "attack_start": HandleAttackStart(json);  break;
+            case "chat":          HandleChat(json);        break;
             default:
                 // неизвестные типы просто игнорируем
                 break;
@@ -615,6 +616,27 @@ public static class NetworkMessageHandler
         }
     }
 
+    // ================== ЧАТ ==================
+
+    private static void HandleChat(string json)
+    {
+        NetMessageChat msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageChat>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить chat: {json}");
+            return;
+        }
+
+        if (msg == null || IsNullOrWhiteSpace(msg.text))
+            return;
+
+        ChatMessageFeed.Instance?.AddMessage(msg.id, msg.text);
+    }
+
     // ================== DISCONNECT ==================
 
     [System.Serializable]
@@ -699,6 +721,11 @@ public static class NetworkMessageHandler
             dmg.energy.maxEnergy = entry.maxEnergy;
 
         dmg.energy.SetCurrentEnergyFromServer(entry.energy);
+    }
+
+    private static bool IsNullOrWhiteSpace(string value)
+    {
+        return string.IsNullOrEmpty(value) || value.Trim().Length == 0;
     }
 
     /// <summary>

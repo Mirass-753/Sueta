@@ -23,4 +23,17 @@ public class NetMessageMove
     public bool inCombat; // находится ли игрок в боевом режиме
 }
 
+/// Общий чат.
+[Serializable]
+public class NetMessageChat : NetMessageBase
+{
+    public string id;
+    public string text;
+
+    public NetMessageChat()
+    {
+        type = "chat";
+    }
+}
+
 /// Клиент → сервер: запрос нанести урон.
