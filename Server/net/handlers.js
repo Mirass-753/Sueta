@@ -1,9 +1,10 @@
-function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
+function createHandlers({ players, npcs, stats, config, attacks, prey, skills, broadcast }) {
   const debugAi = String(process.env.DEBUG_AI || '').toLowerCase() === 'true'
     || process.env.DEBUG_AI === '1';
   const debugCombat = String(process.env.DEBUG_COMBAT || '').toLowerCase() === 'true'
     || process.env.DEBUG_COMBAT === '1';
   const lastMoveLogAt = new Map();
+  const skillsSynced = new Set();
 
   function worldToCell(x, y) {
     const fx = x / config.GRID_SIZE - config.CELL_CENTER_OFFSET_X;
@@ -83,6 +84,18 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
 
     ws.playerId = ws.playerId || msg.id;
 
+    if (skills && !skillsSynced.has(msg.id)) {
+      const snapshots = skills.getPlayerSnapshots(msg.id);
+      snapshots.forEach((snapshot) => {
+        try {
+          ws.send(JSON.stringify({ type: 'skill_sync', ...snapshot }));
+        } catch (e) {
+          console.warn('[WS] failed to send skill snapshot:', e.message);
+        }
+      });
+      skillsSynced.add(msg.id);
+    }
+
     stats.getHp(msg.id);
     stats.getEnergy(msg.id);
 
@@ -112,6 +125,112 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
     };
 
     broadcast(out, ws);
+  }
+
+  function handleSniffRequest(ws, msg) {
+    if (!skills || !prey) return;
+
+    const playerId = ws.playerId || (typeof msg.playerId === 'string' ? msg.playerId : null);
+    if (!playerId) return;
+    ws.playerId = playerId;
+
+    const playerState = players.getPlayer(playerId);
+    if (!playerState) return;
+
+    const now = Date.now() / 1000;
+    if (!skills.canUseSkill(playerId, 'sniff', now)) return;
+
+    const activePrey = prey.getPreyByOwner(playerId);
+    if (activePrey) return;
+
+    const playerCell = worldToCell(playerState.x, playerState.y);
+    const dirX = Math.random() > 0.5 ? 1 : -1;
+    const dirY = Math.random() > 0.5 ? (Math.random() > 0.5 ? 1 : -1) : 0;
+    const dir = {
+      x: Math.max(-1, Math.min(1, dirX)),
+      y: Math.max(-1, Math.min(1, dirY)),
+    };
+
+    if (dir.x === 0 && dir.y === 0) dir.x = 1;
+
+    const spawnOffset = {
+      x: dir.x * config.SNIFF_SPAWN_SCREENS_AWAY * config.SNIFF_SCREEN_CELLS_X,
+      y: dir.y * config.SNIFF_SPAWN_SCREENS_AWAY * config.SNIFF_SCREEN_CELLS_Y,
+    };
+
+    const spawnCell = { x: playerCell.x + spawnOffset.x, y: playerCell.y + spawnOffset.y };
+    const spawnPos = {
+      x: (spawnCell.x + config.CELL_CENTER_OFFSET_X) * config.GRID_SIZE,
+      y: (spawnCell.y + config.CELL_CENTER_OFFSET_Y) * config.GRID_SIZE,
+    };
+
+    const preyId = `prey-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    prey.registerPrey({
+      id: preyId,
+      ownerId: playerId,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      dropItemName: config.PREY_DROP_ITEM_NAME,
+    });
+
+    broadcast({
+      type: 'prey_spawn',
+      preyId,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      ownerId: playerId,
+      dropItemName: config.PREY_DROP_ITEM_NAME,
+    });
+
+    const state = skills.applySkillUse(playerId, 'sniff', now);
+    if (state) {
+      const snapshot = skills.getSkillSnapshot(playerId, 'sniff');
+      if (snapshot) {
+        try {
+          ws.send(JSON.stringify({ type: 'skill_sync', ...snapshot }));
+        } catch (e) {
+          console.warn('[WS] failed to send skill sync:', e.message);
+        }
+      }
+    }
+  }
+
+  function handlePreyPosition(ws, msg) {
+    if (!prey) return;
+    if (typeof msg.id !== 'string') return;
+    if (typeof msg.x !== 'number' || typeof msg.y !== 'number') return;
+
+    const state = prey.getPrey(msg.id);
+    if (!state) return;
+
+    if (state.ownerId && ws.playerId && state.ownerId !== ws.playerId) return;
+
+    prey.updatePreyPosition(msg.id, msg.x, msg.y);
+
+    broadcast({
+      type: 'prey_pos',
+      id: msg.id,
+      x: msg.x,
+      y: msg.y,
+    }, ws);
+  }
+
+  function handlePreyKill(ws, msg) {
+    if (!prey) return;
+    if (typeof msg.id !== 'string') return;
+
+    const state = prey.getPrey(msg.id);
+    if (!state) return;
+
+    if (state.ownerId && ws.playerId && state.ownerId !== ws.playerId) return;
+
+    prey.removePrey(msg.id);
+
+    broadcast({
+      type: 'prey_kill',
+      id: msg.id,
+      killerId: typeof msg.killerId === 'string' ? msg.killerId : null,
+    });
   }
 
   function handleDamageRequest(ws, msg) {
@@ -575,6 +694,19 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
 
     players.removePlayer(id);
     stats.removeEnergyMeta(id);
+    if (skills) skills.clearPlayer(id);
+    skillsSynced.delete(id);
+
+    if (prey) {
+      const removed = prey.removePreyByOwner(id);
+      if (removed) {
+        broadcast({
+          type: 'prey_kill',
+          id: removed.id,
+          killerId: id,
+        });
+      }
+    }
 
     const msg = {
       type: 'disconnect',
@@ -620,6 +752,15 @@ function createHandlers({ players, npcs, stats, config, attacks, broadcast }) {
         break;
       case 'item_pickup':
         handleItemPickup(ws, msg);
+        break;
+      case 'sniff_request':
+        handleSniffRequest(ws, msg);
+        break;
+      case 'prey_pos':
+        handlePreyPosition(ws, msg);
+        break;
+      case 'prey_kill':
+        handlePreyKill(ws, msg);
         break;
       case 'chat':
         handleChat(ws, msg);

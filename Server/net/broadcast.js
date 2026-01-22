@@ -43,7 +43,41 @@ function createBroadcaster(wss) {
     }
   }
 
-  function sendSnapshot(ws, { players, stats, npcs, config }) {
+  function sendPreySnapshot(ws, prey) {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !prey) return;
+
+    for (const [, state] of prey.entries()) {
+      const payload = {
+        type: 'prey_spawn',
+        preyId: state.id,
+        x: state.x,
+        y: state.y,
+        ownerId: state.ownerId,
+        dropItemName: state.dropItemName,
+      };
+
+      try {
+        ws.send(JSON.stringify(payload));
+      } catch (e) {
+        console.warn('[WS] failed to send prey snapshot:', e.message);
+      }
+    }
+  }
+
+  function sendSkillSnapshot(ws, skills, playerId) {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !skills || !playerId) return;
+
+    const snapshots = skills.getPlayerSnapshots(playerId);
+    snapshots.forEach((snapshot) => {
+      try {
+        ws.send(JSON.stringify({ type: 'skill_sync', ...snapshot }));
+      } catch (e) {
+        console.warn('[WS] failed to send skill snapshot:', e.message);
+      }
+    });
+  }
+
+  function sendSnapshot(ws, { players, stats, npcs, prey, skills, config }) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     for (const [id, st] of players.entries()) {
@@ -99,12 +133,21 @@ function createBroadcaster(wss) {
     }
 
     sendNpcSnapshot(ws, npcs);
+    sendPreySnapshot(ws, prey);
+
+    if (skills) {
+      for (const [id] of players.entries()) {
+        sendSkillSnapshot(ws, skills, id);
+      }
+    }
   }
 
   return {
     broadcast,
     sendSnapshot,
     sendNpcSnapshot,
+    sendPreySnapshot,
+    sendSkillSnapshot,
   };
 }
 

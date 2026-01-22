@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class ScentHuntController : MonoBehaviour
 {
@@ -9,9 +8,7 @@ public class ScentHuntController : MonoBehaviour
     public Transform player;
     public PreyController preyPrefab;
     public GameObject meatPickupPrefab;
-    public Item dropItem;
     public LineRenderer scentLine;
-    public Image sniffProgressFill;
     public LayerMask blockMask;
 
     [Header("Grid")]
@@ -28,7 +25,6 @@ public class ScentHuntController : MonoBehaviour
     PreyController _prey;
     bool _sniffing;
     Coroutine _sniffRoutine;
-    string _currentPreyId;
 
     void Awake()
     {
@@ -41,8 +37,8 @@ public class ScentHuntController : MonoBehaviour
 
         NetworkMessageHandler.TryConsumePendingPreySpawns(this);
 
-        if (!_sniffing && _prey == null && Input.GetKeyDown(sniffKey))
-            _sniffRoutine = StartCoroutine(SniffRoutine());
+        if (Input.GetKeyDown(sniffKey))
+            RequestSniff();
 
         UpdateScentLine();
     }
@@ -50,52 +46,22 @@ public class ScentHuntController : MonoBehaviour
     IEnumerator SniffRoutine()
     {
         _sniffing = true;
-        if (sniffProgressFill) sniffProgressFill.fillAmount = 0f;
 
         float t = 0f;
         while (t < sniffDuration)
         {
             t += Time.deltaTime;
-            if (sniffProgressFill) sniffProgressFill.fillAmount = Mathf.Clamp01(t / sniffDuration);
             yield return null;
         }
 
-        if (sniffProgressFill) sniffProgressFill.fillAmount = 1f;
-        SpawnPrey();
+        SendSniffRequest();
         _sniffing = false;
-    }
-
-    void SpawnPrey()
-    {
-        EnsurePlayer();
-        if (preyPrefab == null || player == null) return;
-
-        Vector2Int playerCell = WorldToCell(player.position);
-        Vector2Int dir = Random.value > 0.5f ? Vector2Int.right : Vector2Int.left;
-        if (Random.value > 0.5f) dir += Random.value > 0.5f ? Vector2Int.up : Vector2Int.down;
-        dir = new Vector2Int(Mathf.Clamp(dir.x, -1, 1), Mathf.Clamp(dir.y, -1, 1));
-        if (dir == Vector2Int.zero) dir = Vector2Int.right;
-
-        Vector2Int offset = new Vector2Int(
-            dir.x * spawnScreensAway * screenCells.x,
-            dir.y * spawnScreensAway * screenCells.y
-        );
-
-        Vector2Int spawnCell = playerCell + offset;
-        Vector3 spawnPos = CellToWorld(spawnCell);
-        _prey = Instantiate(preyPrefab, spawnPos, Quaternion.identity);
-        _prey.Init(player, gridSize, cellCenterOffset, blockMask, meatPickupPrefab, dropItem);
-        _prey.OnKilled += HandlePreyKilled;
-        _currentPreyId = _prey.networkId;
-
-        SendPreySpawn(_prey, spawnPos);
     }
 
     void HandlePreyKilled(PreyController prey)
     {
         if (_prey == prey) _prey = null;
         if (scentLine) scentLine.enabled = false;
-        _currentPreyId = null;
     }
 
     void UpdateScentLine()
@@ -160,20 +126,40 @@ public class ScentHuntController : MonoBehaviour
             player = local.transform;
     }
 
-    void SendPreySpawn(PreyController prey, Vector3 spawnPos)
+    void SendSniffRequest()
     {
-        if (prey == null || WebSocketClient.Instance == null || string.IsNullOrEmpty(prey.networkId))
+        if (WebSocketClient.Instance == null)
             return;
 
-        var msg = new NetMessagePreySpawn
+        var playerId = PlayerController.LocalPlayerId;
+        if (string.IsNullOrEmpty(playerId))
+            return;
+
+        var msg = new NetMessageSniffRequest
         {
-            preyId = prey.networkId,
-            x = spawnPos.x,
-            y = spawnPos.y,
-            ownerId = PlayerController.LocalPlayerId,
-            dropItemName = dropItem != null ? dropItem.name : null
+            playerId = playerId
         };
 
         WebSocketClient.Instance.Send(JsonUtility.ToJson(msg));
+    }
+
+    public void RequestSniff()
+    {
+        if (_sniffing || _prey != null)
+            return;
+
+        _sniffRoutine = StartCoroutine(SniffRoutine());
+    }
+
+    public void AssignPrey(PreyController prey)
+    {
+        if (prey == null)
+            return;
+
+        if (_prey != null)
+            _prey.OnKilled -= HandlePreyKilled;
+
+        _prey = prey;
+        _prey.OnKilled += HandlePreyKilled;
     }
 }
