@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class ScentHuntController : MonoBehaviour
 {
@@ -11,7 +10,7 @@ public class ScentHuntController : MonoBehaviour
     public GameObject meatPickupPrefab;
     public Item dropItem;
     public LineRenderer scentLine;
-    public Image sniffProgressFill;
+    public SkillProgressUI sniffSkillUI;
     public LayerMask blockMask;
 
     [Header("Grid")]
@@ -25,14 +24,25 @@ public class ScentHuntController : MonoBehaviour
     public float sniffDuration = 6f;
     public float hideLineRadiusCells = 10f; // скрываем линию, если игрок ближе
 
+    [Header("Sniff Skill")]
+    public string sniffSkillName = "Нюх";
+    public int sniffMaxLevel = 9;
+    public float sniffExperiencePerUse = 0.1f;
+    public float sniffExperiencePerLevel = 1f;
+
     PreyController _prey;
     bool _sniffing;
     Coroutine _sniffRoutine;
     string _currentPreyId;
+    int _sniffLevel = 1;
+    float _sniffExperience;
 
     void Awake()
     {
         NetworkMessageHandler.TryConsumePendingPreySpawns(this);
+        if (sniffSkillUI == null)
+            sniffSkillUI = FindObjectOfType<SkillProgressUI>();
+        UpdateSniffSkillUI();
     }
 
     void Update()
@@ -50,18 +60,16 @@ public class ScentHuntController : MonoBehaviour
     IEnumerator SniffRoutine()
     {
         _sniffing = true;
-        if (sniffProgressFill) sniffProgressFill.fillAmount = 0f;
 
         float t = 0f;
         while (t < sniffDuration)
         {
             t += Time.deltaTime;
-            if (sniffProgressFill) sniffProgressFill.fillAmount = Mathf.Clamp01(t / sniffDuration);
             yield return null;
         }
 
-        if (sniffProgressFill) sniffProgressFill.fillAmount = 1f;
         SpawnPrey();
+        GainSniffExperience();
         _sniffing = false;
     }
 
@@ -89,6 +97,46 @@ public class ScentHuntController : MonoBehaviour
         _currentPreyId = _prey.networkId;
 
         SendPreySpawn(_prey, spawnPos);
+    }
+
+    void GainSniffExperience()
+    {
+        if (sniffMaxLevel < 1)
+            sniffMaxLevel = 1;
+
+        if (_sniffLevel >= sniffMaxLevel)
+        {
+            _sniffLevel = sniffMaxLevel;
+            _sniffExperience = 0f;
+            UpdateSniffSkillUI();
+            return;
+        }
+
+        _sniffExperience += Mathf.Max(0f, sniffExperiencePerUse);
+        float levelSize = Mathf.Max(0.01f, sniffExperiencePerLevel);
+
+        while (_sniffExperience >= levelSize && _sniffLevel < sniffMaxLevel)
+        {
+            _sniffExperience -= levelSize;
+            _sniffLevel += 1;
+        }
+
+        if (_sniffLevel >= sniffMaxLevel)
+            _sniffExperience = 0f;
+
+        UpdateSniffSkillUI();
+    }
+
+    void UpdateSniffSkillUI()
+    {
+        if (sniffSkillUI == null)
+            return;
+
+        sniffSkillUI.SetSkillName(sniffSkillName);
+
+        float levelSize = Mathf.Max(0.01f, sniffExperiencePerLevel);
+        float progress = _sniffLevel >= sniffMaxLevel ? 1f : Mathf.Clamp01(_sniffExperience / levelSize);
+        sniffSkillUI.SetProgress(_sniffLevel, sniffMaxLevel, progress);
     }
 
     void HandlePreyKilled(PreyController prey)
