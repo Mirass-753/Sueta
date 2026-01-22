@@ -64,6 +64,7 @@ public static class NetworkMessageHandler
             case "prey_spawn":    HandlePreySpawn(json);    break;
             case "prey_pos":      HandlePreyPosition(json); break;
             case "prey_kill":     HandlePreyKill(json);     break;
+            case "skill_sync":   HandleSkillSync(json);    break;
             case "npc_spawn":     HandleNpcSpawn(json);     break;
             case "npc_state":     HandleNpcState(json);     break;
             case "npc_attack":    HandleNpcAttack(json);    break;
@@ -429,7 +430,20 @@ public static class NetworkMessageHandler
         if (!string.IsNullOrEmpty(msg.dropItemName))
             drop = ItemRegistry.FindItemByName(msg.dropItemName);
 
-        prey.Init(hunt.player != null ? hunt.player : null, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, false);
+        Transform ownerTransform = null;
+        if (!string.IsNullOrEmpty(msg.ownerId))
+        {
+            if (msg.ownerId == PlayerController.LocalPlayerId)
+                ownerTransform = hunt.player != null ? hunt.player : Object.FindFirstObjectByType<PlayerController>()?.transform;
+            else if (players.TryGetValue(msg.ownerId, out var remote) && remote != null)
+                ownerTransform = remote.transform;
+        }
+
+        bool isOwnerInstance = !string.IsNullOrEmpty(msg.ownerId) && msg.ownerId == PlayerController.LocalPlayerId;
+        prey.Init(ownerTransform, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, isOwnerInstance);
+
+        if (!string.IsNullOrEmpty(msg.ownerId) && msg.ownerId == PlayerController.LocalPlayerId)
+            hunt.AssignPrey(prey);
     }
 
     /// <summary>
@@ -462,10 +476,47 @@ public static class NetworkMessageHandler
             if (!string.IsNullOrEmpty(msg.dropItemName))
                 drop = ItemRegistry.FindItemByName(msg.dropItemName);
 
-            prey.Init(hunt.player != null ? hunt.player : null, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, false);
+            Transform ownerTransform = null;
+            if (!string.IsNullOrEmpty(msg.ownerId))
+            {
+                if (msg.ownerId == PlayerController.LocalPlayerId)
+                    ownerTransform = hunt.player != null ? hunt.player : Object.FindFirstObjectByType<PlayerController>()?.transform;
+                else if (players.TryGetValue(msg.ownerId, out var remote) && remote != null)
+                    ownerTransform = remote.transform;
+            }
+
+            bool isOwnerInstance = !string.IsNullOrEmpty(msg.ownerId) && msg.ownerId == PlayerController.LocalPlayerId;
+            prey.Init(ownerTransform, hunt.gridSize, hunt.cellCenterOffset, hunt.blockMask, hunt.meatPickupPrefab, drop, msg.preyId, isOwnerInstance);
+
+            if (!string.IsNullOrEmpty(msg.ownerId) && msg.ownerId == PlayerController.LocalPlayerId)
+                hunt.AssignPrey(prey);
 
             pendingPreySpawns.RemoveAt(i);
         }
+    }
+
+    // ================== НАВЫКИ ==================
+
+    private static void HandleSkillSync(string json)
+    {
+        NetMessageSkillSync msg;
+        try
+        {
+            msg = JsonUtility.FromJson<NetMessageSkillSync>(json);
+        }
+        catch
+        {
+            Debug.LogWarning($"[NET] Не удалось распарсить skill_sync: {json}");
+            return;
+        }
+
+        if (msg == null || string.IsNullOrEmpty(msg.skillId))
+            return;
+
+        if (!string.IsNullOrEmpty(msg.playerId) && msg.playerId != PlayerController.LocalPlayerId)
+            return;
+
+        SkillsState.ApplySync(msg);
     }
 
     private static void HandlePreyPosition(string json)
