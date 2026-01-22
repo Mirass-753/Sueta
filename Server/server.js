@@ -4,6 +4,8 @@ const players = require('./state/players');
 const npcs = require('./state/npcs');
 const stats = require('./state/stats');
 const attacks = require('./state/attacks');
+const prey = require('./state/prey');
+const skills = require('./state/skills');
 const { createBroadcaster } = require('./net/broadcast');
 const { createHandlers } = require('./net/handlers');
 const { startEnergyRegen } = require('./systems/energyRegenSystem');
@@ -22,6 +24,8 @@ const handlers = createHandlers({
   npcs,
   stats,
   attacks,
+  prey,
+  skills,
   config,
   broadcast: broadcaster.broadcast,
 });
@@ -35,7 +39,7 @@ wss.on('connection', (ws, req) => {
   console.log(`[WS] client connected url=${url} remote=${remote}`);
 
   // Отправляем текущий снимок состояния подключившемуся клиенту
-  broadcaster.sendSnapshot(ws, { players, stats, npcs, config });
+  broadcaster.sendSnapshot(ws, { players, stats, npcs, prey, skills, config });
 
   // lightweight ping/pong for smoke-test
   const pingInterval = setInterval(() => {

@@ -8,9 +8,7 @@ public class ScentHuntController : MonoBehaviour
     public Transform player;
     public PreyController preyPrefab;
     public GameObject meatPickupPrefab;
-    public Item dropItem;
     public LineRenderer scentLine;
-    public SkillProgressUI sniffSkillUI;
     public LayerMask blockMask;
 
     [Header("Grid")]
@@ -24,25 +22,13 @@ public class ScentHuntController : MonoBehaviour
     public float sniffDuration = 6f;
     public float hideLineRadiusCells = 10f; // скрываем линию, если игрок ближе
 
-    [Header("Sniff Skill")]
-    public string sniffSkillName = "Нюх";
-    public int sniffMaxLevel = 9;
-    public float sniffExperiencePerUse = 0.1f;
-    public float sniffExperiencePerLevel = 1f;
-
     PreyController _prey;
     bool _sniffing;
     Coroutine _sniffRoutine;
-    string _currentPreyId;
-    int _sniffLevel = 1;
-    float _sniffExperience;
 
     void Awake()
     {
         NetworkMessageHandler.TryConsumePendingPreySpawns(this);
-        if (sniffSkillUI == null)
-            sniffSkillUI = FindObjectOfType<SkillProgressUI>();
-        UpdateSniffSkillUI();
     }
 
     void Update()
@@ -51,8 +37,8 @@ public class ScentHuntController : MonoBehaviour
 
         NetworkMessageHandler.TryConsumePendingPreySpawns(this);
 
-        if (!_sniffing && _prey == null && Input.GetKeyDown(sniffKey))
-            _sniffRoutine = StartCoroutine(SniffRoutine());
+        if (Input.GetKeyDown(sniffKey))
+            RequestSniff();
 
         UpdateScentLine();
     }
@@ -68,82 +54,14 @@ public class ScentHuntController : MonoBehaviour
             yield return null;
         }
 
-        SpawnPrey();
-        GainSniffExperience();
+        SendSniffRequest();
         _sniffing = false;
-    }
-
-    void SpawnPrey()
-    {
-        EnsurePlayer();
-        if (preyPrefab == null || player == null) return;
-
-        Vector2Int playerCell = WorldToCell(player.position);
-        Vector2Int dir = Random.value > 0.5f ? Vector2Int.right : Vector2Int.left;
-        if (Random.value > 0.5f) dir += Random.value > 0.5f ? Vector2Int.up : Vector2Int.down;
-        dir = new Vector2Int(Mathf.Clamp(dir.x, -1, 1), Mathf.Clamp(dir.y, -1, 1));
-        if (dir == Vector2Int.zero) dir = Vector2Int.right;
-
-        Vector2Int offset = new Vector2Int(
-            dir.x * spawnScreensAway * screenCells.x,
-            dir.y * spawnScreensAway * screenCells.y
-        );
-
-        Vector2Int spawnCell = playerCell + offset;
-        Vector3 spawnPos = CellToWorld(spawnCell);
-        _prey = Instantiate(preyPrefab, spawnPos, Quaternion.identity);
-        _prey.Init(player, gridSize, cellCenterOffset, blockMask, meatPickupPrefab, dropItem);
-        _prey.OnKilled += HandlePreyKilled;
-        _currentPreyId = _prey.networkId;
-
-        SendPreySpawn(_prey, spawnPos);
-    }
-
-    void GainSniffExperience()
-    {
-        if (sniffMaxLevel < 1)
-            sniffMaxLevel = 1;
-
-        if (_sniffLevel >= sniffMaxLevel)
-        {
-            _sniffLevel = sniffMaxLevel;
-            _sniffExperience = 0f;
-            UpdateSniffSkillUI();
-            return;
-        }
-
-        _sniffExperience += Mathf.Max(0f, sniffExperiencePerUse);
-        float levelSize = Mathf.Max(0.01f, sniffExperiencePerLevel);
-
-        while (_sniffExperience >= levelSize && _sniffLevel < sniffMaxLevel)
-        {
-            _sniffExperience -= levelSize;
-            _sniffLevel += 1;
-        }
-
-        if (_sniffLevel >= sniffMaxLevel)
-            _sniffExperience = 0f;
-
-        UpdateSniffSkillUI();
-    }
-
-    void UpdateSniffSkillUI()
-    {
-        if (sniffSkillUI == null)
-            return;
-
-        sniffSkillUI.SetSkillName(sniffSkillName);
-
-        float levelSize = Mathf.Max(0.01f, sniffExperiencePerLevel);
-        float progress = _sniffLevel >= sniffMaxLevel ? 1f : Mathf.Clamp01(_sniffExperience / levelSize);
-        sniffSkillUI.SetProgress(_sniffLevel, sniffMaxLevel, progress);
     }
 
     void HandlePreyKilled(PreyController prey)
     {
         if (_prey == prey) _prey = null;
         if (scentLine) scentLine.enabled = false;
-        _currentPreyId = null;
     }
 
     void UpdateScentLine()
@@ -208,20 +126,40 @@ public class ScentHuntController : MonoBehaviour
             player = local.transform;
     }
 
-    void SendPreySpawn(PreyController prey, Vector3 spawnPos)
+    void SendSniffRequest()
     {
-        if (prey == null || WebSocketClient.Instance == null || string.IsNullOrEmpty(prey.networkId))
+        if (WebSocketClient.Instance == null)
             return;
 
-        var msg = new NetMessagePreySpawn
+        var playerId = PlayerController.LocalPlayerId;
+        if (string.IsNullOrEmpty(playerId))
+            return;
+
+        var msg = new NetMessageSniffRequest
         {
-            preyId = prey.networkId,
-            x = spawnPos.x,
-            y = spawnPos.y,
-            ownerId = PlayerController.LocalPlayerId,
-            dropItemName = dropItem != null ? dropItem.name : null
+            playerId = playerId
         };
 
         WebSocketClient.Instance.Send(JsonUtility.ToJson(msg));
+    }
+
+    public void RequestSniff()
+    {
+        if (_sniffing || _prey != null)
+            return;
+
+        _sniffRoutine = StartCoroutine(SniffRoutine());
+    }
+
+    public void AssignPrey(PreyController prey)
+    {
+        if (prey == null)
+            return;
+
+        if (_prey != null)
+            _prey.OnKilled -= HandlePreyKilled;
+
+        _prey = prey;
+        _prey.OnKilled += HandlePreyKilled;
     }
 }
