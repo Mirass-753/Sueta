@@ -75,6 +75,44 @@ function applySkillUse(playerId, skillId, nowSeconds) {
   return state;
 }
 
+function applySkillExp(playerId, skillId) {
+  const def = getSkillDef(skillId);
+  if (!def) return null;
+
+  const state = ensureSkill(playerId, skillId);
+
+  if (state.level >= def.maxLevel) {
+    state.level = def.maxLevel;
+    state.exp = 0;
+    return state;
+  }
+
+  const expPerUse = Math.max(0, def.expPerUse);
+  const expPerLevel = Math.max(0.01, def.expPerLevel);
+
+  state.exp += expPerUse;
+  while (state.exp >= expPerLevel && state.level < def.maxLevel) {
+    state.exp -= expPerLevel;
+    state.level += 1;
+  }
+
+  if (state.level >= def.maxLevel) {
+    state.level = def.maxLevel;
+    state.exp = 0;
+  }
+
+  return state;
+}
+
+function markSkillUse(playerId, skillId, nowSeconds) {
+  const def = getSkillDef(skillId);
+  if (!def) return null;
+
+  const state = ensureSkill(playerId, skillId);
+  state.lastUseAt = nowSeconds;
+  return state;
+}
+
 function getSkillSnapshot(playerId, skillId) {
   const def = getSkillDef(skillId);
   if (!def) return null;
@@ -106,6 +144,8 @@ module.exports = {
   ensureSkill,
   canUseSkill,
   applySkillUse,
+  applySkillExp,
+  markSkillUse,
   getSkillSnapshot,
   getPlayerSnapshots,
   clearPlayer,
