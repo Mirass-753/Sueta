@@ -138,6 +138,18 @@ function createHandlers({ players, npcs, stats, config, attacks, prey, skills, b
     if (!playerState) return;
 
     const now = Date.now() / 1000;
+    const expState = skills.applySkillExp(playerId, 'sniff');
+    if (expState) {
+      const snapshot = skills.getSkillSnapshot(playerId, 'sniff');
+      if (snapshot) {
+        try {
+          ws.send(JSON.stringify({ type: 'skill_sync', ...snapshot }));
+        } catch (e) {
+          console.warn('[WS] failed to send skill sync:', e.message);
+        }
+      }
+    }
+
     if (!skills.canUseSkill(playerId, 'sniff', now)) return;
 
     const activePrey = prey.getPreyByOwner(playerId);
@@ -182,17 +194,7 @@ function createHandlers({ players, npcs, stats, config, attacks, prey, skills, b
       dropItemName: config.PREY_DROP_ITEM_NAME,
     });
 
-    const state = skills.applySkillUse(playerId, 'sniff', now);
-    if (state) {
-      const snapshot = skills.getSkillSnapshot(playerId, 'sniff');
-      if (snapshot) {
-        try {
-          ws.send(JSON.stringify({ type: 'skill_sync', ...snapshot }));
-        } catch (e) {
-          console.warn('[WS] failed to send skill sync:', e.message);
-        }
-      }
-    }
+    skills.markSkillUse(playerId, 'sniff', now);
   }
 
   function handlePreyPosition(ws, msg) {

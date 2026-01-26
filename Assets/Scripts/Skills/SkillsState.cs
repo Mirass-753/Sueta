@@ -40,4 +40,5 @@ public static class SkillsState
     {
         return skills.TryGetValue(skillId, out snapshot);
     }
+
 }
