@@ -1942,7 +1942,7 @@ MonoBehaviour:
   autoReconnect: 1
   connectTimeoutSeconds: 8
   reconnectDelaySeconds: 2
-  productionUrl: wss://catlaw.online/game-ws
+  productionUrl: wss://catlaw.online/ws
   useEditorUrl: 0
   editorUrl: ws://127.0.0.1:3000/game-ws
   queuedMessageLimit: 64
