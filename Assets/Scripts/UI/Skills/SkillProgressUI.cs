@@ -16,7 +16,7 @@ public class SkillProgressUI : MonoBehaviour
     public void SetProgress(int level, int maxLevel, float progress01)
     {
         if (levelText != null)
-            levelText.text = string.Format("{0}/{1}", level, maxLevel);
+            levelText.text = level.ToString();
 
         if (progressFill != null)
             progressFill.fillAmount = Mathf.Clamp01(progress01);
