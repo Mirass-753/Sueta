@@ -40,4 +40,54 @@ public static class SkillsState
     {
         return skills.TryGetValue(skillId, out snapshot);
     }
+
+    public static void AddLocalExp(string skillId, string skillName, float expAmount, float expToLevel = 100f, int maxLevel = 10, int startLevel = 1)
+    {
+        if (string.IsNullOrEmpty(skillId))
+            return;
+
+        if (!skills.TryGetValue(skillId, out var snapshot))
+        {
+            int clampedStartLevel = Math.Max(1, startLevel);
+            int clampedMaxLevel = Math.Max(clampedStartLevel, maxLevel);
+            float clampedExpToLevel = Math.Max(1f, expToLevel);
+
+            snapshot = new SkillSnapshot
+            {
+                skillId = skillId,
+                skillName = string.IsNullOrEmpty(skillName) ? skillId : skillName,
+                level = clampedStartLevel,
+                maxLevel = clampedMaxLevel,
+                exp = 0f,
+                expToLevel = clampedExpToLevel
+            };
+        }
+
+        if (!string.IsNullOrEmpty(skillName))
+            snapshot.skillName = skillName;
+
+        snapshot.expToLevel = Math.Max(1f, snapshot.expToLevel);
+        snapshot.maxLevel = Math.Max(snapshot.level, snapshot.maxLevel);
+
+        if (snapshot.level >= snapshot.maxLevel)
+        {
+            snapshot.exp = snapshot.expToLevel;
+        }
+        else
+        {
+            snapshot.exp += expAmount;
+
+            while (snapshot.exp >= snapshot.expToLevel && snapshot.level < snapshot.maxLevel)
+            {
+                snapshot.exp -= snapshot.expToLevel;
+                snapshot.level += 1;
+            }
+
+            if (snapshot.level >= snapshot.maxLevel)
+                snapshot.exp = snapshot.expToLevel;
+        }
+
+        skills[skillId] = snapshot;
+        SkillUpdated?.Invoke(snapshot);
+    }
 }

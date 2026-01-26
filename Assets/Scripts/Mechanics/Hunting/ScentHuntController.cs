@@ -21,6 +21,12 @@ public class ScentHuntController : MonoBehaviour
     public KeyCode sniffKey = KeyCode.Alpha1;
     public float sniffDuration = 6f;
     public float hideLineRadiusCells = 10f; // скрываем линию, если игрок ближе
+    public string sniffSkillId = "sniff";
+    public string sniffSkillName = "Нюх";
+    public float sniffExpGain = 5f;
+    public float sniffExpToLevel = 100f;
+    public int sniffMaxLevel = 10;
+    public int sniffStartLevel = 1;
 
     PreyController _prey;
     bool _sniffing;
@@ -38,7 +44,10 @@ public class ScentHuntController : MonoBehaviour
         NetworkMessageHandler.TryConsumePendingPreySpawns(this);
 
         if (Input.GetKeyDown(sniffKey))
+        {
+            SkillsState.AddLocalExp(sniffSkillId, sniffSkillName, sniffExpGain, sniffExpToLevel, sniffMaxLevel, sniffStartLevel);
             RequestSniff();
+        }
 
         UpdateScentLine();
     }
