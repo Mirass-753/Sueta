@@ -28,7 +28,7 @@ public class WebSocketClient : MonoBehaviour
 
     [Header("URLs")]
     [Tooltip("Production WebSocket endpoint")]
-    [SerializeField] private string productionUrl = "wss://catlaw.online/game-ws";
+    [SerializeField] private string productionUrl = "wss://catlaw.online/ws";
 
 #if UNITY_EDITOR
     [Tooltip("В редакторе использовать локальный сервер вместо продового")]
