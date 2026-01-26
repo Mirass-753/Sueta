@@ -32,7 +32,7 @@ public class ChatMessageFeed : MonoBehaviour
         }
 
         Instance = this;
-        defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         EnsureChatUi();
         HideInput();
