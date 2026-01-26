@@ -383,9 +383,7 @@ MonoBehaviour:
   player: {fileID: 0}
   preyPrefab: {fileID: 4397584754721418980, guid: 32bbef2c2888db54191c6509e01abbed, type: 3}
   meatPickupPrefab: {fileID: 1708847495}
-  dropItem: {fileID: 11400000, guid: efebb162ccd7bcd48992a3ea98c980d8, type: 2}
   scentLine: {fileID: 143297741}
-  sniffProgressFill: {fileID: 0}
   blockMask:
     serializedVersion: 2
     m_Bits: 0
@@ -1944,7 +1942,7 @@ MonoBehaviour:
   autoReconnect: 1
   connectTimeoutSeconds: 8
   reconnectDelaySeconds: 2
-  productionUrl: wss://catlaw.online/ws
+  productionUrl: wss://catlaw.online/game-ws
   useEditorUrl: 0
   editorUrl: ws://127.0.0.1:3000/game-ws
   queuedMessageLimit: 64
